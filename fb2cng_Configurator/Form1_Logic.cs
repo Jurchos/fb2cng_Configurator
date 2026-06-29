@@ -1,4 +1,5 @@
-﻿using System;
+﻿using fb2cng_Configurator.fb2cng_Configurator;
+using System;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
@@ -7,7 +8,7 @@ using System.Windows.Forms;
 
 namespace fb2cng_Configurator
 {
-    public partial class Form1
+    public partial class Form1 : Form
     {
         // 1. Керування мовою та локалізацією
         private void LangComboBox_SelectedIndexChanged(object sender, EventArgs e)
@@ -23,45 +24,68 @@ namespace fb2cng_Configurator
 
         private void UpdateLocalization()
         {
+            // Отримуємо словник для поточної мови
             var loc = Config.Localization[Config.CurrentLanguage];
 
-            this.Text = loc["Title"];
-            lblLang.Text = loc["Language"];
-            btnDumpConfig.Text = loc["DumpConfig"];
-            lblConfigName.Text = loc["ConfigName"];
-            chkCss.Text = loc["CssEnable"];
-            btnBrowseCss.Text = loc["Browse"];
-            chkFb2Name.Text = loc["Fb2Name"];
-            btnHelp.Text = loc["Help"];
-            btnTheme.Text = loc["Theme"];
-            btnOk.Text = loc["Ok"];
-            btnCancel.Text = loc["Cancel"];
-
-            lblOutNameTitle.Text = loc["OutNameTitle"];
-            chkTranslit.Text = loc["Translit"];
-            chkReaderSize.Text = loc["ReaderSize"];
-            lblWidth.Text = loc["Width"];
-            lblHeight.Text = loc["Height"];
-            lblDpi.Text = loc["Dpi"];
-            chkFootnotes.Text = loc["FootnotesMode"];
-            chkTocType.Text = loc["TocType"];
-            chkEmbedFonts.Text = loc["EmbedFonts"];
-            chkOpenCover.Text = loc["OpenCover"];
-            chkFixZip.Text = loc["FixZip"];
-
-            for (int i = 0; i < 8; i++) chkAsFolder[i].Text = loc["AsFolder"];
-
-            string[] itemKeys = { "Item_Empty", "Item_Author", "Item_Series", "Item_Title", "Item_Lang", "Item_Genre", "Item_Date", "Item_Source", "Item_Uuid" };
-
-            for (int i = 0; i < 8; i++)
+            // Допоміжна функція: безпечно дістає текст із словника. 
+            // Якщо ключа немає — програма НЕ ПАДАЄ, а просто використовує дефолтне ім'я
+            string GetText(string key, string defaultText)
             {
-                int currSel = cmbOutFields[i].SelectedIndex;
-                cmbOutFields[i].Items.Clear();
-                for (int k = 0; k < itemKeys.Length; k++)
+                return loc.ContainsKey(key) ? loc[key] : defaultText;
+            }
+
+            // Безпечний переклад основних елементів
+            this.Text = GetText("Title", "fb2cng Configurator");
+            lblLang.Text = GetText("Language", "Language:");
+            btnDumpConfig.Text = GetText("DumpConfig", "Dump Default Config");
+            lblConfigName.Text = GetText("ConfigName", "Config Name:");
+            chkCss.Text = GetText("CssEnable", "Use Custom CSS");
+            btnBrowseCss.Text = GetText("Browse", "Browse...");
+            chkFb2Name.Text = GetText("Fb2Name", "Use Original FB2 Name");
+            btnHelp.Text = GetText("Help", "Help");
+            btnTheme.Text = GetText("Theme", "Theme");
+            btnOk.Text = GetText("Ok", "OK");
+            btnCancel.Text = GetText("Cancel", "Cancel");
+
+            lblOutNameTitle.Text = GetText("OutNameTitle", "Output Name Template Constructor");
+            chkTranslit.Text = GetText("Translit", "Transliterate Output Name");
+            chkReaderSize.Text = GetText("ReaderSize", "Set Custom Display Size");
+            lblWidth.Text = GetText("Width", "W:");
+            lblHeight.Text = GetText("Height", "H:");
+            lblDpi.Text = GetText("Dpi", "DPI:");
+
+            // Виправлені аліаси для виносок та обкладинок
+            if (chkNotes != null) chkNotes.Text = GetText("FootnotesMode", "Footnotes Mode");
+            if (chkCover != null) chkCover.Text = GetText("TocType", "Cover Mode");
+            if (chkOpenFromCover != null) chkOpenFromCover.Text = GetText("OpenCover", "Open from Cover");
+            if (chkFixZip != null) chkFixZip.Text = GetText("FixZip", "Fix Broken ZIP Archives");
+
+            if (chkAsFolder != null)
+            {
+                for (int i = 0; i < 8; i++)
+                    if (chkAsFolder[i] != null) chkAsFolder[i].Text = GetText("AsFolder", "Fold");
+            }
+
+            // Безпечний переклад пунктів випадаючих списків конструктора шаблонів
+            string[] itemKeys = { "Item_Empty", "Item_Author", "Item_Series", "Item_Title", "Item_Lang", "Item_Genre", "Item_Date", "Item_Source", "Item_Uuid" };
+            string[] defaultItems = { "", "Author", "Series", "Title", "Language", "Genre", "Date", "Source File", "Book UUID" };
+
+            if (cmbOutFields != null)
+            {
+                for (int i = 0; i < 8; i++)
                 {
-                    cmbOutFields[i].Items.Add(loc[itemKeys[k]]);
+                    if (cmbOutFields[i] == null) continue;
+
+                    int currSel = cmbOutFields[i].SelectedIndex;
+                    cmbOutFields[i].Items.Clear();
+
+                    for (int k = 0; k < itemKeys.Length; k++)
+                    {
+                        // Якщо перекладу назви поля (наприклад Item_Uuid) немає в словнику, беремо англійський дефолт
+                        cmbOutFields[i].Items.Add(GetText(itemKeys[k], defaultItems[k]));
+                    }
+                    cmbOutFields[i].SelectedIndex = currSel >= 0 ? currSel : 0;
                 }
-                cmbOutFields[i].SelectedIndex = currSel >= 0 ? currSel : 0;
             }
         }
 
@@ -103,9 +127,10 @@ namespace fb2cng_Configurator
                 }
                 else if (c is CheckBox chk)
                 {
-                    // Якщо прапорець знаходиться всередині конструктора назв (це чекбокс "як папка")
-                    if (grpOutName.Controls.Contains(chk))
-                        chk.ForeColor = folderColor; // Даємо йому контрастний колір
+                    // Безпечна динамічна перевірка: 
+                    // Якщо текст чекбокса "Fold" (або містить "Folder"), або він лежить всередині нашого конструктора імен
+                    if (chk.Text == "Fold" || chk.Text.Contains("Folder") || (chk.Parent != null && chk.Parent.Name == "templateGrid"))
+                        chk.ForeColor = folderColor; // Даємо контрастний колір для "як папка"
                     else
                         chk.ForeColor = foreColor;
                 }
@@ -115,6 +140,7 @@ namespace fb2cng_Configurator
                     c.BackColor = backColor;
                 }
 
+                // Рекурсивно обходимо всі вкладені динамічні сітки та панелі
                 if (c.HasChildren)
                 {
                     SetControlsTheme(c, foreColor, backColor, folderColor);
@@ -256,7 +282,6 @@ namespace fb2cng_Configurator
             if (chkNotes.Checked) { lines = ReplaceYamlValueLine(lines, "toc_type", $"\"{cmbNotesMode.SelectedItem}\""); if (lines == null) return; }
             if (chkOpenFromCover.Checked) { lines = ReplaceYamlValueLine(lines, "open_from_cover", "true"); if (lines == null) return; }
             if (chkFixZip.Checked) { lines = ReplaceYamlValueLine(lines, "fix_zip", "true"); if (lines == null) return; }
-            if (chkEmbedFonts.Checked) { lines = ReplaceYamlValueLine(lines, "embed_fonts", "true"); if (lines == null) return; }
 
             // --- 5. ОБРОБКА БЛОКУ ШАБЛОНУ НАЗВИ (OUTPUT_NAME_TEMPLATE) ---
             string templateBlock = "";
