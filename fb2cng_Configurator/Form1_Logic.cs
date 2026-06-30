@@ -1,9 +1,9 @@
-﻿using fb2cng_Configurator.fb2cng_Configurator;
-using System;
+﻿using System;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Text;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace fb2cng_Configurator
@@ -15,26 +15,23 @@ namespace fb2cng_Configurator
         {
             switch (langComboBox.SelectedIndex)
             {
-                case 1: Config.CurrentLanguage = "Ukrainan"; break;
+                case 1: Config.CurrentLanguage = "Ukrainian"; break;
                 case 2: Config.CurrentLanguage = "Russian"; break;
                 default: Config.CurrentLanguage = "English"; break;
             }
             UpdateLocalization();
+            ApplyTheme(); // Перезапуск для оновлення кольорів папок на новій мові
         }
 
         private void UpdateLocalization()
         {
-            // Отримуємо словник для поточної мови
             var loc = Config.Localization[Config.CurrentLanguage];
 
-            // Допоміжна функція: безпечно дістає текст із словника. 
-            // Якщо ключа немає — програма НЕ ПАДАЄ, а просто використовує дефолтне ім'я
             string GetText(string key, string defaultText)
             {
                 return loc.ContainsKey(key) ? loc[key] : defaultText;
             }
 
-            // Безпечний переклад основних елементів
             this.Text = GetText("Title", "fb2cng Configurator");
             lblLang.Text = GetText("Language", "Language:");
             btnDumpConfig.Text = GetText("DumpConfig", "Dump Default Config");
@@ -54,11 +51,12 @@ namespace fb2cng_Configurator
             lblHeight.Text = GetText("Height", "H:");
             lblDpi.Text = GetText("Dpi", "DPI:");
 
-            // Виправлені аліаси для виносок та обкладинок
             if (chkNotes != null) chkNotes.Text = GetText("FootnotesMode", "Footnotes Mode");
             if (chkCover != null) chkCover.Text = GetText("TocType", "Cover Mode");
             if (chkOpenFromCover != null) chkOpenFromCover.Text = GetText("OpenCover", "Open from Cover");
             if (chkFixZip != null) chkFixZip.Text = GetText("FixZip", "Fix Broken ZIP Archives");
+
+            if (grpOutName != null) grpOutName.Text = GetText("OutNameTitle", "Output Structure");
 
             if (chkAsFolder != null)
             {
@@ -66,7 +64,6 @@ namespace fb2cng_Configurator
                     if (chkAsFolder[i] != null) chkAsFolder[i].Text = GetText("AsFolder", "Fold");
             }
 
-            // Безпечний переклад пунктів випадаючих списків конструктора шаблонів
             string[] itemKeys = { "Item_Empty", "Item_Author", "Item_Series", "Item_Title", "Item_Lang", "Item_Genre", "Item_Date", "Item_Source", "Item_Uuid" };
             string[] defaultItems = { "", "Author", "Series", "Title", "Language", "Genre", "Date", "Source File", "Book UUID" };
 
@@ -81,7 +78,6 @@ namespace fb2cng_Configurator
 
                     for (int k = 0; k < itemKeys.Length; k++)
                     {
-                        // Якщо перекладу назви поля (наприклад Item_Uuid) немає в словнику, беремо англійський дефолт
                         cmbOutFields[i].Items.Add(GetText(itemKeys[k], defaultItems[k]));
                     }
                     cmbOutFields[i].SelectedIndex = currSel >= 0 ? currSel : 0;
@@ -97,7 +93,7 @@ namespace fb2cng_Configurator
                 Color darkBg = Color.FromArgb(37, 37, 38);
                 Color elementBg = Color.FromArgb(45, 45, 48);
                 Color textWhite = Color.FromArgb(245, 245, 245);
-                Color limeAccent = Color.Lime; // Яскравий зелений для чекбоксів папок
+                Color limeAccent = Color.Lime;
 
                 this.BackColor = darkBg;
                 scrollMenuPanel.BackColor = darkBg;
@@ -127,10 +123,10 @@ namespace fb2cng_Configurator
                 }
                 else if (c is CheckBox chk)
                 {
-                    // Безпечна динамічна перевірка: 
-                    // Якщо текст чекбокса "Fold" (або містить "Folder"), або він лежить всередині нашого конструктора імен
-                    if (chk.Text == "Fold" || chk.Text.Contains("Folder") || (chk.Parent != null && chk.Parent.Name == "templateGrid"))
-                        chk.ForeColor = folderColor; // Даємо контрастний колір для "як папка"
+                    // Абсолютно надійне визначення через Tag та Name батьківського контейнера
+                    if ((chk.Tag != null && chk.Tag.ToString() == "FolderCheckBox") ||
+                        (chk.Parent != null && chk.Parent.Name == "templateGrid"))
+                        chk.ForeColor = folderColor;
                     else
                         chk.ForeColor = foreColor;
                 }
@@ -140,14 +136,12 @@ namespace fb2cng_Configurator
                     c.BackColor = backColor;
                 }
 
-                // Рекурсивно обходимо всі вкладені динамічні сітки та панелі
                 if (c.HasChildren)
                 {
                     SetControlsTheme(c, foreColor, backColor, folderColor);
                 }
             }
         }
-
         // 3. Взаємодія елементів
         private void BtnBrowseCss_Click(object sender, EventArgs e)
         {
@@ -204,16 +198,26 @@ namespace fb2cng_Configurator
                 }
             }
         }
-        // 4. Логіка взаємодії з fbc.exe та файлами YAML
-        private void BtnDumpConfig_Click(object sender, EventArgs e)
+
+        // 4. Логіка взаємодії з fbc.exe та файлами YAML (Повністю асинхронний запуск процесу)
+        private async void BtnDumpConfig_Click(object sender, EventArgs e)
         {
             string exePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "fbc.exe");
 
             if (!File.Exists(exePath))
             {
-                MessageBox.Show(Config.Localization[Config.CurrentLanguage]["ErrFbc"], "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                string key = Config.CurrentLanguage == "Ukrainian" ? "ErrFbc" : "ErrFbc";
+                var text = Config.Localization.ContainsKey(Config.CurrentLanguage) && Config.Localization[Config.CurrentLanguage].ContainsKey("ErrFbc")
+                    ? Config.Localization[Config.CurrentLanguage]["ErrFbc"]
+                    : "Error: fbc.exe not found!";
+                MessageBox.Show(text, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
+
+            // Блокуємо кнопку на час генерації для запобігання подвійним клікам
+            btnDumpConfig.Enabled = false;
+            string previousText = btnDumpConfig.Text;
+            btnDumpConfig.Text = Config.CurrentLanguage == "Ukrainian" ? "Генерація..." : "Generating...";
 
             try
             {
@@ -226,19 +230,29 @@ namespace fb2cng_Configurator
                     UseShellExecute = false
                 };
 
-                using (Process proc = Process.Start(psi))
+                // Запуск процесу в окремому потоці (Інтерфейс програми залишається повністю активним!)
+                await Task.Run(() =>
                 {
-                    proc.WaitForExit();
-                }
+                    using (Process proc = Process.Start(psi))
+                    {
+                        proc?.WaitForExit();
+                    }
+                });
 
-                MessageBox.Show("config.yaml successfully generated!", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                string successMsg = Config.CurrentLanguage == "Ukrainian" ? "Файл config.yaml успішно згенеровано!" : "config.yaml successfully generated!";
+                MessageBox.Show(successMsg, "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             catch (Exception ex)
             {
                 MessageBox.Show(ex.Message, "Process Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
+            finally
+            {
+                btnDumpConfig.Text = previousText;
+                btnDumpConfig.Enabled = true;
+            }
         }
-
+        // --- 5. ЗБЕРЕЖЕННЯ ТА ПЕРЕЗАПИС ПАРАМЕТРІВ YAML ---
         private void SaveYamlConfiguration()
         {
             string sourcePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "config.yaml");
@@ -249,6 +263,7 @@ namespace fb2cng_Configurator
 
             string targetPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, targetFileName);
 
+            // Якщо дефолтного файлу конфігу немає в папці, пробуємо згенерувати його на льоту
             if (!File.Exists(sourcePath))
             {
                 BtnDumpConfig_Click(null, null);
@@ -257,19 +272,19 @@ namespace fb2cng_Configurator
 
             string[] lines = File.ReadAllLines(sourcePath, Encoding.UTF8);
 
-            // --- 1. ОБРОБКА CSS-ТАБЛИЦІ СТИЛІВ ---
+            // 1. Обробка шляху користувацького CSS
             if (chkCss.Checked)
             {
                 lines = ReplaceYamlValueLine(lines, "stylesheet_path", $"\"{txtCssPath.Text}\"");
                 if (lines == null) return;
             }
 
-            // --- 2. ОБРОБКА ТРАНСЛІТЕРАЦІЇ ---
+            // 2. Обробка прапорця транслітерації назви
             string newTranslitValue = chkTranslit.Checked ? "true" : "false";
             lines = ReplaceYamlValueLine(lines, "file_name_transliterate", newTranslitValue);
             if (lines == null) return;
 
-            // --- 3. ОБРОБКА РОЗМІРУ ЕКРАНА ---
+            // 3. Обробка фізичних розмірів екрана електронної книги
             if (chkReaderSize.Checked)
             {
                 lines = ReplaceYamlValueLine(lines, "width", txtWidth.Text); if (lines == null) return;
@@ -277,22 +292,14 @@ namespace fb2cng_Configurator
                 lines = ReplaceYamlValueLine(lines, "dpi", txtDpi.Text); if (lines == null) return;
             }
 
-            // --- 4. ОБРОБКА НОВИХ ПАРАМЕТРІВ (ВИНОСКИ, ІЄРАРХІЯ, ОБКЛАДИНКА, ZIP, ШРИФТИ) ---
-            if (chkCover.Checked) { lines = ReplaceYamlValueLine(lines, "mode", $"\"{cmbCoverMode.SelectedItem}\""); if (lines == null) return; }
-            if (chkNotes.Checked) { lines = ReplaceYamlValueLine(lines, "toc_type", $"\"{cmbNotesMode.SelectedItem}\""); if (lines == null) return; }
+            // 4. Обробка виносок та обкладинок (Виправлено переплутані аліаси ключі-значення!)
+            if (chkCover.Checked) { lines = ReplaceYamlValueLine(lines, "toc_type", $"\"{cmbCoverMode.SelectedItem}\""); if (lines == null) return; }
+            if (chkNotes.Checked) { lines = ReplaceYamlValueLine(lines, "mode", $"\"{cmbNotesMode.SelectedItem}\""); if (lines == null) return; }
             if (chkOpenFromCover.Checked) { lines = ReplaceYamlValueLine(lines, "open_from_cover", "true"); if (lines == null) return; }
             if (chkFixZip.Checked) { lines = ReplaceYamlValueLine(lines, "fix_zip", "true"); if (lines == null) return; }
 
-            // --- 5. ОБРОБКА БЛОКУ ШАБЛОНУ НАЗВИ (OUTPUT_NAME_TEMPLATE) ---
-            string templateBlock = "";
-            if (chkFb2Name.Checked)
-            {
-                templateBlock = "        {{- .OriginalFileName -}}";
-            }
-            else
-            {
-                templateBlock = BuildGoTemplateFromUI();
-            }
+            // 5. Формування та запис фінального Go-шаблону для назви книги
+            string templateBlock = chkFb2Name.Checked ? "        {{- .OriginalFileName -}}" : BuildGoTemplateFromUI();
 
             if (!string.IsNullOrEmpty(templateBlock))
             {
@@ -300,10 +307,12 @@ namespace fb2cng_Configurator
                 if (lines == null) return;
             }
 
+            // Запис готового масиву рядків у новий конфігураційний файл
             try
             {
                 File.WriteAllLines(targetPath, lines, Encoding.UTF8);
                 Config.SaveSettings();
+
                 var loc = Config.Localization[Config.CurrentLanguage];
                 MessageBox.Show(string.Format(loc["SaveSuccess"], targetFileName), "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 this.Close();
@@ -321,6 +330,7 @@ namespace fb2cng_Configurator
             {
                 string trimmed = lines[i].TrimStart();
 
+                // Шукаємо закоментовані дефолтні рядки (наприклад: #width: 1072)
                 if (trimmed.StartsWith("#"))
                 {
                     string withoutComment = trimmed.Substring(1).TrimStart();
@@ -332,6 +342,7 @@ namespace fb2cng_Configurator
                         break;
                     }
                 }
+                // Шукаємо розкоментовані активні рядки (наприклад: width: 1264)
                 else if (trimmed.StartsWith(key + ":"))
                 {
                     string padding = lines[i].Substring(0, lines[i].IndexOf(key));
@@ -349,7 +360,7 @@ namespace fb2cng_Configurator
 
             return lines;
         }
-
+        // --- 6. БЕЗПЕЧНА ЗАМІНА БАГАТОРАД КОВОГО БЛОКУ YAML ---
         private string[] ReplaceOutputTemplateBlockSafely(string[] lines, string newTemplateCode)
         {
             System.Collections.Generic.List<string> result = new System.Collections.Generic.List<string>();
@@ -361,6 +372,7 @@ namespace fb2cng_Configurator
                 string currentLine = lines[i];
                 string trimmed = currentLine.TrimStart();
 
+                // Визначаємо початок секції шаблону назви (активної або закоментованої)
                 if (!blockFound && (trimmed.StartsWith("output_name_template:") || (trimmed.StartsWith("#") && trimmed.Substring(1).TrimStart().StartsWith("output_name_template:"))))
                 {
                     blockFound = true;
@@ -368,25 +380,28 @@ namespace fb2cng_Configurator
                     if (index == -1) index = currentLine.IndexOf("#");
                     string padding = index > 0 ? currentLine.Substring(0, index) : "";
 
+                    // Записуємо заголовок блоку із символом літералу "|" для Go-шаблонів
                     result.Add($"{padding}output_name_template: |");
                     result.Add(newTemplateCode);
                     skipOldBlockMode = true;
                     continue;
                 }
 
+                // Логіка пропуску старого вкладеного вмісту Go-шаблону
                 if (skipOldBlockMode)
                 {
                     if (string.IsNullOrEmpty(currentLine) || currentLine.Trim().Length == 0) continue;
 
                     int leadingSpaces = currentLine.Length - currentLine.TrimStart().Length;
 
+                    // Якщо відступи стали меншими за 8 пробілів — це кінець блоку шаблону
                     if (leadingSpaces < 8)
                     {
                         skipOldBlockMode = false;
                     }
                     else
                     {
-                        continue;
+                        continue; // Пропускаємо старий рядок Go-шаблону
                     }
                 }
 
@@ -402,6 +417,7 @@ namespace fb2cng_Configurator
             return result.ToArray();
         }
 
+        // --- 7. ГЕНЕРАТОР СКЛАДНИХ GO-ШАБЛОНІВ ДЛЯ FB2CNG ---
         private string BuildGoTemplateFromUI()
         {
             StringBuilder sb = new StringBuilder();
@@ -410,40 +426,41 @@ namespace fb2cng_Configurator
             for (int i = 0; i < 8; i++)
             {
                 int selIndex = cmbOutFields[i].SelectedIndex;
-                if (selIndex <= 0) break;
+                if (selIndex <= 0) break; // Зупиняємося, якщо зустріли порожній елемент "[Не вибрано]"
 
                 string chunk = "";
 
                 switch (selIndex)
                 {
-                    case 1: // Автор (Виправлений та оптимізований)
+                    case 1: // Автор книги (розумний вивід прізвища та ініціалів + ", et al" / "и др")
                         chunk = "{{- $author := \"\" -}}{{- if gt (len .Authors) 0 -}}{{- with first .Authors -}}{{- if .LastName -}}{{- $author = .LastName -}}{{- if .FirstName }}{{ $author = printf \"%s %s\" $author .FirstName }}{{ end -}}{{- if .MiddleName }}{{ $author = printf \"%s %s\" $author .MiddleName }}{{ end -}}{{- else if .Nickname -}}{{- $author = .Nickname -}}{{- end -}}{{- end -}}{{- if gt (len .Authors) 1 -}}{{- if eq .Language \"ru\" -}}{{- $author = printf \"%s %s\" $author \"и др\" -}}{{- else -}}{{- $author = printf \"%s %s\" $author \", et al\" -}}{{- end -}}{{- end -}}{{- end -}}{{- if $author }}{{ printf \"%s\" $author }}{{ end -}}";
                         break;
-                    case 2: // Серія (Тільки чиста назва)
+                    case 2: // Чиста назва серії (якщо книга входить у серію)
                         chunk = "{{- if gt (len .Series) 0 -}}{{- with first .Series -}}{{ .Name }}{{- end -}}{{- end -}}";
                         break;
-                    case 3: // Назва книги + Двозначний номер серії попереду (якщо серія існує)
+                    case 3: // Назва книги + Двозначний номер у серії попереду (наприклад: "02 Назва")
                         chunk = "{{- if gt (len .Series) 0 -}}{{- with first .Series -}}{{- if .Number }}{{ printf \"%02d \" .Number }}{{- end -}}{{- end -}}{{- end -}}{{- .Title -}}";
                         break;
-                    case 4: // Мова
+                    case 4: // Дволітерний або трилітерний код мови книги
                         chunk = "{{- .Language -}}";
                         break;
-                    case 5: // Жанр
+                    case 5: // Головний жанр книги
                         chunk = "{{- if gt (len .Genres) 0 -}}{{ index .Genres 0 }}{{- end -}}";
                         break;
-                    case 6: // Дата
+                    case 6: // Текстова дата створення чи публікації
                         chunk = "{{- .Date -}}";
                         break;
-                    case 7: // Ім'я файлу
+                    case 7: // Оригінальне базове ім'я вхідного файлу
                         chunk = "{{- .SourceFile -}}";
                         break;
-                    case 8: // UUID
+                    case 8: // Унікальний ідентифікатор книги UUID
                         chunk = "{{- .BookID -}}";
                         break;
                 }
 
                 if (!string.IsNullOrEmpty(chunk))
                 {
+                    // Додаємо дефіс як роздільник елементів, якщо попередній елемент не був папкою
                     if (!isFirst && !chkAsFolder[i - 1].Checked)
                     {
                         sb.Append(" - ");
@@ -451,6 +468,7 @@ namespace fb2cng_Configurator
 
                     sb.Append(chunk);
 
+                    // Якщо стоїть прапорець "як папка", створюємо вкладену директорію в структурі файлу
                     if (chkAsFolder[i].Checked)
                     {
                         sb.Append("/");
@@ -468,9 +486,10 @@ namespace fb2cng_Configurator
             return "";
         }
 
+        // --- 8. ДІАЛОГОВІ МОДЛЬНІ ВІКНА (ПОВНІСТЮ ЛОКАЛІЗОВАНІ) ---
         private void ShowYamlError(string key)
         {
-            string errMsg = Config.CurrentLanguage == "Ukrainan"
+            string errMsg = Config.CurrentLanguage == "Ukrainian"
                 ? $"Помилка: Параметр '{key}' не знайдено в оригінальному файлі config.yaml!"
                 : (Config.CurrentLanguage == "Russian"
                     ? $"Ошибка: Параметр '{key}' не найден в оригинальном файле config.yaml!"
@@ -481,11 +500,11 @@ namespace fb2cng_Configurator
 
         private void ShowHelp()
         {
-            string helpMessage = Config.CurrentLanguage == "Ukrainan"
-                ? "fb2cng Конфігуратор шаблонів\nРозроблено для набору інструментів fb2cng GUI."
+            string helpMessage = Config.CurrentLanguage == "Ukrainian"
+                ? "fb2cng Конфігуратор шаблонів\nРозроблено для набору інструментів fb2cng GUI.\n\nПрограма автоматично збирає правильні та валідні Go-шаблони для консольного конвертера fb2cng.exe та модифікує файли конфігурації YAML без порушення їх структури."
                 : (Config.CurrentLanguage == "Russian"
-                    ? "fb2cng Конфигуратор шаблонов\nРазработано для набора инструментов fb2cng GUI."
-                    : "fb2cng Template Configurator\nCreated for fb2cng GUI toolset.");
+                    ? "fb2cng Конфигуратор шаблонов\nРазработано для набора инструментов fb2cng GUI.\n\nПрограмма автоматически собирает правильные и валидные Go-шаблоны для консольного конвертера fb2cng.exe и модифицирует файлы конфигурации YAML без нарушения их структуры."
+                    : "fb2cng Template Configurator\nCreated for fb2cng GUI toolset.\n\nThis application automatically builds correct and valid Go templates for the fb2cng.exe engine and modifies YAML configuration files without corrupting their layout.");
 
             MessageBox.Show(helpMessage, "Help / Довідка", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }

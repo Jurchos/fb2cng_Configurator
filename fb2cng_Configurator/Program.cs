@@ -8,14 +8,14 @@ namespace fb2cng_Configurator
         [STAThread]
         static void Main()
         {
-            Application.EnableVisualStyles();
-            Application.SetCompatibleTextRenderingDefault(false);
-
+            // Налаштування для High DPI масштабування на .NET 4.8
             if (Environment.OSVersion.Version.Major >= 6)
             {
                 SetProcessDPIAware();
             }
 
+            Application.EnableVisualStyles();
+            Application.SetCompatibleTextRenderingDefault(false);
             Application.Run(new Form1());
         }
 
