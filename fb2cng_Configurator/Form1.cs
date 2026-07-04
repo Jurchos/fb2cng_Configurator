@@ -13,37 +13,37 @@ namespace fb2cng_Configurator
         private Panel footerPanel;
         private Panel scrollMenuPanel;
 
-        // Елементи інтерфейсу конфігуратора YAML
+        // Елементи інтерфейсу конфігуратора
         private ComboBox langComboBox;
         private Button btnDumpConfig;
         private TextBox txtConfigName;
         private CheckBox chkCss;
         private TextBox txtCssPath;
         private Button btnBrowseCss;
+
+        private CheckBox chkNotes;
+        private ComboBox cmbNotesMode;
+        private CheckBox chkCover;
+        private ComboBox cmbCoverMode;
+
+        private CheckBox chkReaderSize;
+        private Label lblWidth, lblHeight, lblDpi;
+        private TextBox txtWidth, txtHeight, txtDpi;
+
+        private CheckBox chkOpenFromCover;
+        private CheckBox chkFixZip;
         private CheckBox chkFb2Name;
+        private CheckBox chkTranslit;
 
         private readonly Label lblOutNameTitle;
         private GroupBox grpOutName;
         private ComboBox[] cmbOutFields = null;
         private CheckBox[] chkAsFolder = null;
 
-        private CheckBox chkTranslit;
-        private CheckBox chkReaderSize;
-        private Label lblWidth, lblHeight, lblDpi;
-        private TextBox txtWidth, txtHeight, txtDpi;
-
-        private CheckBox chkCover;
-        private ComboBox cmbCoverMode;
-        private CheckBox chkNotes;
-        private ComboBox cmbNotesMode;
-        private CheckBox chkOpenFromCover;
-        private CheckBox chkFixZip;
-
         private Button btnHelp, btnTheme, btnOk, btnCancel;
         private Label lblLang, lblConfigName;
 
         // ХАК ДЛЯ ПОВНОГО ВИЛУЧЕННЯ РИВКІВ ТА МЕРЕХТІННЯ ПРИ ЗМІНІ ТЕМИ (Рендеринг у буфері ОС)
-
         [DllImport("user32.dll")]
         private static extern int SendMessage(IntPtr hWnd, int wMsg, bool wParam, int lParam);
         private const int WM_SETREDRAW = 0x000B;
@@ -122,11 +122,11 @@ namespace fb2cng_Configurator
         private void SetupInterface()
         {
             // === КРОК 1: РОЗРАХУНОК МАСШТАБУ ТА КОНСТАНТ (ПЕРЕНЕСЕНО НА ПОЧАТОК) ===
-            float currentScale = CreateGraphics().DpiX / 96f;            // 18f - базова висота шрифту для 100% масштабу (Segoe UI 10pt)
+            float currentScale = CreateGraphics().DpiX / 96f;  // Масштабування для HiDPI (96 DPI - базовий рівень)
 
             int blockMargin = (int)(9 * currentScale);         // Простір між блоками параметрів
             int labelToFieldSpace = (int)(3 * currentScale);   // Відступ від тексту до його поля
-            int labelHeight = (int)(20 * currentScale);        // Висота підписи (Label)
+            int labelHeight = (int)(20 * currentScale);        // Висота написів (Label)
             int fieldHeight = (int)(24 * currentScale);        // Висота полів введення (TextBox, ComboBox)
             int checkBoxHeight = (int)(22 * currentScale);     // Висота чекбоксів (CheckBox)
             int sidePadding = (int)(2 * currentScale);         // Відступ всередину для ідеального вирівнювання країв кнопкою огляду
@@ -221,7 +221,7 @@ namespace fb2cng_Configurator
                     new float[] {0, 0, 0, 0, 1}
                 };
                         using ImageAttributes imageAttributes = new ImageAttributes();
-                        imageAttributes.SetColorMatrix(new System.Drawing.Imaging.ColorMatrix(ptsArray));
+                        imageAttributes.SetColorMatrix(new ColorMatrix(ptsArray));
                         e.Graphics.DrawImage(outFolderIcon, destRect, 0, 0, outFolderIcon.Width, outFolderIcon.Height, GraphicsUnit.Pixel, imageAttributes);
                         return;
                     }
@@ -241,17 +241,24 @@ namespace fb2cng_Configurator
                 btnBrowseCss.Invalidate();
                 ApplyTheme();
             };
-
             btnBrowseCss.Click += BtnBrowseCss_Click;
-
             scrollMenuPanel.Controls.AddRange(new Control[] { chkCss, txtCssPath, btnBrowseCss });
 
-            chkFb2Name = new CheckBox { AutoSize = true };
-            chkFb2Name.CheckedChanged += ChkFb2Name_CheckedChanged;
-            scrollMenuPanel.Controls.Add(chkFb2Name);
+            //поля: виноски, навігаціна ієрархія, екран читалки, чек бокси: fix_zip, відкривати з обкладинки, оригінальна назва FB2, транслітерація
 
-            chkTranslit = new CheckBox { AutoSize = true };
-            scrollMenuPanel.Controls.Add(chkTranslit);
+            chkNotes = new CheckBox { AutoSize = true };
+            cmbNotesMode = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Enabled = false };
+            cmbNotesMode.Items.AddRange(new string[] { "default", "float", "floatRenumbered" });
+            cmbNotesMode.SelectedIndex = 0;
+            chkNotes.CheckedChanged += (s, e) => { cmbNotesMode.Enabled = chkNotes.Checked; ApplyTheme(); };
+            scrollMenuPanel.Controls.AddRange(new Control[] { chkNotes, cmbNotesMode });
+
+            chkCover = new CheckBox { AutoSize = true };
+            cmbCoverMode = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Enabled = false };
+            cmbCoverMode.Items.AddRange(new string[] { "normal", "old_kindle", "flat" });
+            cmbCoverMode.SelectedIndex = 0;
+            chkCover.CheckedChanged += (s, e) => { cmbCoverMode.Enabled = chkCover.Checked; ApplyTheme(); };
+            scrollMenuPanel.Controls.AddRange(new Control[] { chkCover, cmbCoverMode });
 
             // Розмір екрана читалки
             chkReaderSize = new CheckBox { AutoSize = true };
@@ -270,24 +277,16 @@ namespace fb2cng_Configurator
             };
             scrollMenuPanel.Controls.AddRange(new Control[] { chkReaderSize, lblWidth, txtWidth, lblHeight, txtHeight, lblDpi, txtDpi });
 
-            // Виноски та Навігація
-            chkNotes = new CheckBox { AutoSize = true };
-            cmbNotesMode = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Enabled = false };
-            cmbNotesMode.Items.AddRange(new string[] { "default", "float", "floatRenumbered" });
-            cmbNotesMode.SelectedIndex = 0;
-            chkNotes.CheckedChanged += (s, e) => { cmbNotesMode.Enabled = chkNotes.Checked; ApplyTheme(); };
-            scrollMenuPanel.Controls.AddRange(new Control[] { chkNotes, cmbNotesMode });
-
-            chkCover = new CheckBox { AutoSize = true };
-            cmbCoverMode = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Enabled = false };
-            cmbCoverMode.Items.AddRange(new string[] { "normal", "old_kindle", "flat" });
-            cmbCoverMode.SelectedIndex = 0;
-            chkCover.CheckedChanged += (s, e) => { cmbCoverMode.Enabled = chkCover.Checked; ApplyTheme(); };
-            scrollMenuPanel.Controls.AddRange(new Control[] { chkCover, cmbCoverMode });
-
-            chkOpenFromCover = new CheckBox { AutoSize = true };
             chkFixZip = new CheckBox { AutoSize = true };
-            scrollMenuPanel.Controls.AddRange(new Control[] { chkOpenFromCover, chkFixZip });
+            chkOpenFromCover = new CheckBox { AutoSize = true };
+            scrollMenuPanel.Controls.AddRange(new Control[] { chkFixZip, chkOpenFromCover });
+
+            chkFb2Name = new CheckBox { AutoSize = true };
+            chkFb2Name.CheckedChanged += ChkFb2Name_CheckedChanged;
+            scrollMenuPanel.Controls.Add(chkFb2Name);
+
+            chkTranslit = new CheckBox { AutoSize = true };
+            scrollMenuPanel.Controls.Add(chkTranslit);
 
             // 3. Ініціалізація конструктора структури назви (8 елементів) всередині grpOutName
             cmbOutFields = new ComboBox[8];
@@ -316,7 +315,6 @@ namespace fb2cng_Configurator
             }
 
             // === КРОК 5: СТВОРЕННЯ КНОПОК ФУТЕРА З ІКОНКАМИ ===
-            // === 4. КНОПКИ ФУТЕРА ===
             int iconSize = (int)(17 * currentScale);
 
             btnHelp = new Button
@@ -339,14 +337,14 @@ namespace fb2cng_Configurator
                 Padding = new Padding((int)(10 * currentScale), 0, 0, 0) // Робить м'який відступ між іконкою та текстом
             };
 
-            btnCancel = new Button { Text = "Cancel" };
             btnOk = new Button { Text = "OK" };
+            btnCancel = new Button { Text = "Cancel" };
 
-            footerPanel.Controls.AddRange(new Control[] { btnHelp, btnTheme, btnCancel, btnOk });
+            footerPanel.Controls.AddRange(new Control[] { btnHelp, btnTheme, btnOk, btnCancel });
 
-            // НАЛАШТУВАННЯ ГАРЯЧИХ КЛАВІШ (Додаємо сюди)
-            this.AcceptButton = btnOk;     // Enter тепер натискає OK
-            this.CancelButton = btnCancel; // Esc тепер натискає Cancel
+            // НАЛАШТУВАННЯ ГАРЯЧИХ КЛАВІШ 
+            AcceptButton = btnOk;     // Enter тепер натискає OK
+            CancelButton = btnCancel; // Esc тепер натискає Cancel
 
             btnTheme.Click += (s, e) => { Config.IsDarkTheme = !Config.IsDarkTheme; ApplyTheme(); Config.SaveSettings(); };
             btnCancel.Click += (s, e) => Close();
@@ -371,7 +369,7 @@ namespace fb2cng_Configurator
             int scrollFieldWidth = fieldWidth - (int)(3 * currentScale); // Відступ для вертикального скролу
             int scrollRightField = xRightField - (int)(3 * currentScale);
 
-            // --- РОЗСТАНОВКА ЕЛЕМЕНТІВ ВСЕРЕДИНІ SCROLL PANEL ---
+            // === КРОК 3: РОЗСТАНОВКА ЕЛЕМЕНТІВ ВСЕРЕДИНІ SCROLL PANEL ---
             int nextY = (int)(12 * currentScale);              // Початковий відступ зверху
             int textLabelWidth = (int)(240 * currentScale);    // Фіксована ширина під написи ліворуч
             int valueFieldWidth = scrollFieldWidth - textLabelWidth - (int)(5 * currentScale); // Ширина поля праворуч
@@ -401,13 +399,13 @@ namespace fb2cng_Configurator
             txtCssPath.SetBounds(xLeft + textLabelWidth, nextY, cssTxtWidth, fieldHeight);
             btnBrowseCss.SetBounds(scrollRightField - browseBtnWidth - sidePadding, nextY, browseBtnWidth, fieldHeight);
 
-            // 8. Спосіб обробки виносок
+            // 5. Спосіб обробки виносок
             nextY = txtCssPath.Bottom + blockMargin;
             chkNotes.SetBounds(xLeft, nextY + (int)(1 * currentScale), textLabelWidth, checkBoxHeight);
             cmbNotesMode.ItemHeight = fieldHeight - 6;
             cmbNotesMode.SetBounds(xLeft + textLabelWidth, nextY, valueFieldWidth, fieldHeight);
 
-            // 9. Навігація / Обкладинка
+            // 6. Навігаційна ієрархія
             nextY = cmbNotesMode.Bottom + blockMargin;
             chkCover.SetBounds(xLeft, nextY + (int)(1 * currentScale), textLabelWidth, checkBoxHeight);
             cmbCoverMode.ItemHeight = fieldHeight - 6;
@@ -438,19 +436,19 @@ namespace fb2cng_Configurator
             txtDpi.Multiline = true;
             txtDpi.SetBounds(lblDpi.Right, nextY, exactBoxWidth, fieldHeight);
 
-            // Фикс для останнього чекбокса (Вилучити дескриптор / Фікс ZIP)
+            // 8. чекбокси: (Вилучити дескриптор / Фікс ZIP)
             nextY = chkReaderSize.Bottom + blockMargin; // Також повертаємо повноцінний blockMargin
             chkFixZip.SetBounds(xLeft, nextY, scrollFieldWidth, checkBoxHeight);
 
-            // 10. Додаткові прапорці
+            // (відкривати зобкладинки)
             nextY = chkFixZip.Bottom + blockMargin;
             chkOpenFromCover.SetBounds(xLeft, nextY, scrollFieldWidth, checkBoxHeight);
 
-            // 5. Оригінальне ім'я FB2
+            // (Оригінальне ім'я FB2)
             nextY = chkOpenFromCover.Bottom + blockMargin;
             chkFb2Name.SetBounds(xLeft, nextY, scrollFieldWidth, checkBoxHeight);
 
-            // 6. Транслітерація
+            // (Транслітерація)
             nextY = chkFb2Name.Bottom + blockMargin;
             chkTranslit.SetBounds(xLeft, nextY, scrollFieldWidth, checkBoxHeight);
 
@@ -492,11 +490,11 @@ namespace fb2cng_Configurator
 
             // === ЗАКРУГЛЕННЯ КНОПОК ПІСЛЯ ТОГО, ЯК ЗАДАНІ ВСІ РОЗМІРИ SETBOUNDS ===
             MakeButtonRounded(btnDumpConfig, btnRadius);
-            MakeButtonRounded(btnBrowseCss, (int)(5 * currentScale));
+            MakeButtonRounded(btnBrowseCss, (int)(5 * currentScale));// Застосовуємо закруглення кутів кнопки огляду (трохи менший радіус для компактності)
             MakeButtonRounded(btnHelp, btnRadius);
             MakeButtonRounded(btnTheme, btnRadius);
-            MakeButtonRounded(btnCancel, btnRadius);
             MakeButtonRounded(btnOk, btnRadius);
+            MakeButtonRounded(btnCancel, btnRadius);
             // Фінальний розрахунок висоти програми
             // СТАЛО (Авто-адаптація під висоту монітора + вихід на перший план):
             int finalHeight = footerPanel.Bottom + (int)(8 * currentScale);  // Встановлюємо фінальну висоту форми з урахуванням масштабу DPI
@@ -562,7 +560,7 @@ namespace fb2cng_Configurator
         private void MakeButtonRounded(Button btn, int radius)
         {
             // Крок 1. Надійний Region (Ваш оригінальний без змін)
-            using (System.Drawing.Drawing2D.GraphicsPath path = new System.Drawing.Drawing2D.GraphicsPath())
+            using (GraphicsPath path = new GraphicsPath())
             {
                 float r = radius;
                 path.AddArc(0, 0, r * 2, r * 2, 180, 90);
@@ -588,90 +586,79 @@ namespace fb2cng_Configurator
             // Крок 2. Малювання рамки
             btn.Paint += (s, ev) =>
             {
-                ev.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+                ev.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
 
                 bool isDarkTheme = Config.IsDarkTheme;
 
                 if (isDarkTheme)
                 {
                     // ДЛЯ ТЕМНОЇ ТЕМИ
-                    using (System.Drawing.Drawing2D.GraphicsPath buttonFramePath = new System.Drawing.Drawing2D.GraphicsPath())
-                    {
-                        float r = radius;
-                        float startXY = 0.5f;
-                        float sizeAdjustment = 1.0f;
+                    using GraphicsPath buttonFramePath = new GraphicsPath();
+                    float r = radius;
+                    float startXY = 0.5f;
+                    float sizeAdjustment = 1.0f;
 
-                        buttonFramePath.AddArc(startXY, startXY, r * 2, r * 2, 180, 90);
-                        buttonFramePath.AddArc(btn.Width - (r * 2) - sizeAdjustment, startXY, r * 2, r * 2, 270, 90);
-                        buttonFramePath.AddArc(btn.Width - (r * 2) - sizeAdjustment, btn.Height - (r * 2) - sizeAdjustment, r * 2, r * 2, 0, 90);
-                        buttonFramePath.AddArc(0, btn.Height - (r * 2) - sizeAdjustment, r * 2, r * 2, 90, 90);
-                        buttonFramePath.CloseAllFigures();
+                    buttonFramePath.AddArc(startXY, startXY, r * 2, r * 2, 180, 90);
+                    buttonFramePath.AddArc(btn.Width - (r * 2) - sizeAdjustment, startXY, r * 2, r * 2, 270, 90);
+                    buttonFramePath.AddArc(btn.Width - (r * 2) - sizeAdjustment, btn.Height - (r * 2) - sizeAdjustment, r * 2, r * 2, 0, 90);
+                    buttonFramePath.AddArc(0, btn.Height - (r * 2) - sizeAdjustment, r * 2, r * 2, 90, 90);
+                    buttonFramePath.CloseAllFigures();
 
-                        // Якщо кнопка вимкнена в темній темі, робимо рамку тьмяною
-                        Color btnBorderColor;
-                        if (!btn.Enabled)
-                        {
-                            btnBorderColor = Color.FromArgb(70, Color.Gray);
-                        }
-                        else
-                        {
-                            btnBorderColor = btn.FlatAppearance.BorderColor != Color.Empty && btn.FlatAppearance.BorderColor != Color.Transparent
-                                ? btn.FlatAppearance.BorderColor : btn.ForeColor;
-                        }
+                    // Якщо кнопка вимкнена в темній темі, робимо рамку тьмяною
+                    // 1. Спочатку визначаємо стандартний колір рамки для активної кнопки
+                    Color activeBorderColor = btn.FlatAppearance.BorderColor != Color.Empty && btn.FlatAppearance.BorderColor != Color.Transparent
+                        ? btn.FlatAppearance.BorderColor
+                        : btn.ForeColor;
 
-                        using (Pen pen = new Pen(btnBorderColor, 1.2F))
-                        {
-                            ev.Graphics.DrawPath(pen, buttonFramePath);
-                        }
-                    }
+                    // 2. Тепер легко і читабельно робимо вибір залежно від стану кнопки
+                    Color btnBorderColor = !btn.Enabled
+                        ? Color.FromArgb(70, Color.Gray)
+                        : activeBorderColor;
+                    using Pen pen = new Pen(btnBorderColor, 1.2F);
+                    ev.Graphics.DrawPath(pen, buttonFramePath);
                 }
                 else
                 {
                     // ДЛЯ СВІТЛОЇ ТЕМИ
-                    using (System.Drawing.Drawing2D.GraphicsPath buttonFramePath = new System.Drawing.Drawing2D.GraphicsPath())
+                    using GraphicsPath buttonFramePath = new GraphicsPath();
+                    float r = radius;
+                    float startXY = 0.5f;
+                    float sizeAdjustment = 1.0f;
+
+                    buttonFramePath.AddArc(startXY, startXY, r * 2, r * 2, 180, 90);
+                    buttonFramePath.AddArc(btn.Width - (r * 2) - sizeAdjustment, startXY, r * 2, r * 2, 270, 90);
+                    buttonFramePath.AddArc(btn.Width - (r * 2) - sizeAdjustment, btn.Height - (r * 2) - sizeAdjustment, r * 2, r * 2, 0, 90);
+                    buttonFramePath.AddArc(startXY, btn.Height - (r * 2) - sizeAdjustment, r * 2, r * 2, 90, 90);
+                    buttonFramePath.CloseAllFigures();
+
+                    // Подвійна перевірка: підсвічуємо лише якщо миша НАВЕДЕНА і кнопка АКТИВНА
+                    if (isHovered && btn.Enabled)
                     {
-                        float r = radius;
-                        float startXY = 0.5f;
-                        float sizeAdjustment = 1.0f;
-
-                        buttonFramePath.AddArc(startXY, startXY, r * 2, r * 2, 180, 90);
-                        buttonFramePath.AddArc(btn.Width - (r * 2) - sizeAdjustment, startXY, r * 2, r * 2, 270, 90);
-                        buttonFramePath.AddArc(btn.Width - (r * 2) - sizeAdjustment, btn.Height - (r * 2) - sizeAdjustment, r * 2, r * 2, 0, 90);
-                        buttonFramePath.AddArc(startXY, btn.Height - (r * 2) - sizeAdjustment, r * 2, r * 2, 90, 90);
-                        buttonFramePath.CloseAllFigures();
-
-                        // Подвійна перевірка: підсвічуємо лише якщо миша НАВЕДЕНА і кнопка АКТИВНА
-                        if (isHovered && btn.Enabled)
+                        using (Pen glowPen = new Pen(Color.FromArgb(60, 0, 120, 215), 2.2F))
                         {
-                            using (Pen glowPen = new Pen(Color.FromArgb(60, 0, 120, 215), 2.2F))
-                            {
-                                ev.Graphics.DrawPath(glowPen, buttonFramePath);
-                            }
-
-                            using (Pen mainPen = new Pen(Color.FromArgb(0, 120, 215), 1.2F))
-                            {
-                                ev.Graphics.DrawPath(mainPen, buttonFramePath);
-                            }
+                            ev.Graphics.DrawPath(glowPen, buttonFramePath);
                         }
-                        else
-                        {
-                            Color btnBorderColor;
 
-                            if (!btn.Enabled)
-                            {
-                                btnBorderColor = Color.FromArgb(180, Color.LightGray);
-                            }
-                            else
-                            {
-                                btnBorderColor = btn.FlatAppearance.BorderColor != Color.Empty && btn.FlatAppearance.BorderColor != Color.Transparent
-                                    ? btn.FlatAppearance.BorderColor : Color.FromArgb(120, Color.Gray);
-                            }
+                        using Pen mainPen = new Pen(Color.FromArgb(0, 120, 215), 1.2F);
+                        ev.Graphics.DrawPath(mainPen, buttonFramePath);
+                    }
+                    else
+                    {
+                        Color btnBorderColor;
 
-                            using (Pen pen = new Pen(btnBorderColor, 1.0F))
-                            {
-                                ev.Graphics.DrawPath(pen, buttonFramePath);
-                            }
-                        }
+                        // 1. Визначаємо активний колір у нову тимчасову змінну activeBorderColor
+                        Color activeBorderColor = btn.FlatAppearance.BorderColor != Color.Empty && btn.FlatAppearance.BorderColor != Color.Transparent
+                            ? btn.FlatAppearance.BorderColor
+                            : Color.FromArgb(120, Color.Gray);
+
+                        // 2. Присвоюємо значення ОРИГІНАЛЬНІЙ змінній btnBorderColor (БЕЗ слова Color на початку!)
+                        btnBorderColor = !btn.Enabled
+                            ? Color.FromArgb(180, Color.LightGray)
+                            : activeBorderColor;
+
+                        // 3. Відмальовуємо
+                        using Pen pen = new Pen(btnBorderColor, 1.0F);
+                        ev.Graphics.DrawPath(pen, buttonFramePath);
                     }
                 }
             };
@@ -706,6 +693,5 @@ namespace fb2cng_Configurator
             Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
             ResumeLayout(false);
         }
-
     }
 }

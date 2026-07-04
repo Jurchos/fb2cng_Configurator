@@ -36,7 +36,6 @@ namespace fb2cng_Configurator
                         {
                             CurrentLanguage = lines[0];
                         }
-
                         if (bool.TryParse(lines[1], out bool dark))
                         {
                             IsDarkTheme = dark;
@@ -66,7 +65,7 @@ namespace fb2cng_Configurator
                 ["Fb2Name"] = "Use the fb2 filename for the source file",
                 ["Help"] = "Help",
                 ["Theme"] = "Theme",
-                ["Ok"] = "OK",
+                ["Ok"] = "Save",
                 ["Cancel"] = "Cancel",
                 ["ErrTitle"] = "Error",
                 ["ErrFbc"] = "Error: fbc.exe not found in the application folder!",
@@ -86,22 +85,25 @@ namespace fb2cng_Configurator
                 ["Item_Date"] = "Date (.Date)",
                 ["Item_Source"] = "Source File (.SourceFile)",
                 ["Item_Uuid"] = "Book UUID (.BookID)",
-                ["Short_id"] = "Shortened book ID (_xx)",
+                ["Item_Short_Uuid"] = "Shortened ID (_xx), for duplicates",
                 ["FootnotesMode"] = "Footnotes display method:",
                 ["TocType"] = "Navigation hierarchy type:",
                 ["OpenCover"] = "Open book from the cover page",
                 ["FixZip"] = "Remove data descriptor (Fix ZIP)",
-                ["SaveSuccessTitle"] = "Success",
                 ["SaveErrorTitle"] = "Save Error",
-                ["ErrAccessDenied"] = "Access Denied: The file '{0}' is locked!\nPlease check if it is marked as 'Read-Only' or opened in another application.",
+                ["ErrReadOnly"] = "Access Denied:\n The file '{0}' is locked!\nPlease check if it is marked as 'Read-Only' or opened in another application.",
+                ["ErrAccessDenied"] = "Access Denied:\n Access to the file '{0}' is denied!\nPlease run the application as Administrator.",
+                ["SaveSuccessTitle"] = "Success",
                 ["SaveSuccess"] = "Configuration successfully saved to {0}!",
                 ["YamlTitle"] = "YAML Error",
                 ["YamlErr"] = "Error: Key '{0}' not found in template config.yaml!",
-                ["HelpText"] = "fb2cng Configurator Help:\n\n1. Select your options." +
-                                                          "\n2. Use the Name Constructor to build the file structure." +
-                                                          "\n3. Click OK to save." +
-                                                          "\n\nCreated by Jurchos & Gemini" +
-                                                          "\nVersion: 0.3.",
+                ["HelpText"] = "fb2cng Template Configurator\nDesigned for the fb2cng GUI toolkit." +
+                               "\n\nThis application automatically builds a Go template for the fb2cng.exe CLI converter and updates the YAML configuration files." +
+                               "\n1. Adjust the required parameters." +
+                               "\n2. Use the Constructor to build the folder structure and filename." +
+                               "\n3. Click 'Save'." +
+                               "\n\nCreated by: Jurchos & Gemini" +
+                               "\nVersion: 0.5",
                 ["GenTitle"] = "Success",
                 ["GenSuccess"] = "config.yaml successfully generated!"
             };
@@ -137,22 +139,25 @@ namespace fb2cng_Configurator
                 ["Item_Date"] = "Дата (.Date)",
                 ["Item_Source"] = "Базова назва файла (.SourceFile)",
                 ["Item_Uuid"] = "UUID книги (.BookID)",
-                ["Short_id"] = "Скорочений ID книги (_xx)",
+                ["Item_Short_Uuid"] = "Скорочений ID (_xx), для дублів",
                 ["FootnotesMode"] = "Спосіб відображення виносок:",
                 ["TocType"] = "Тип навігаційної ієрархії:",
                 ["OpenCover"] = "Відкриття книги з титульної сторінки",
                 ["FixZip"] = "Вилучити дескриптор даних (Fix ZIP)",
-                ["SaveSuccessTitle"] = "Успіх",
                 ["SaveErrorTitle"] = "Помилка збереження",
-                ["ErrAccessDenied"] = "Помилка доступу: Файл '{0}' заблоковано!\nПеревірте, чи не встановлено атрибут 'Тільки для читання', або чи не відкритий він в іншій програмі.",
+                ["ErrReadOnly"] = "Помилка доступу:\n Файл '{0}' заблоковано!\nПеревірте, чи не встановлено атрибут 'Тільки для читання', або чи не відкритий він в іншій програмі.",
+                ["ErrAccessDenied"] = "Помилка доступу:\n Відмовлено в доступі до файлу '{0}'!\nЗапустіть програму від імені Адміністратора.",
+                ["SaveSuccessTitle"] = "Успіх",
                 ["SaveSuccess"] = "Конфігурацію успішно збережено у файл {0}!",
                 ["YamlTitle"] = "Помилка YAML",
                 ["YamlErr"] = "Помилка: Ключ '{0}' не знайдено у файлі config.yaml!",
-                ["HelpText"] = "Довідка конфігуратора fb2cng:\n\n1. Налаштуйте необхідні параметри." +
-                                                              "\n2. Використовуйте конструктор для створення структури папок та імені." +
-                                                              "\n3. Натисніть ОК для збереження." +
-                                                              "\n\nСтворено: Jurchos & Gemini" +
-                                                              "\nВерсія: 0.3",
+                ["HelpText"] = "Конфігуратор шаблона fb2cng\nРозроблено для набору інструментів fb2cng GUI." +
+                               "\n\nПрограма автоматично збирає Go-шаблон для консольного конвертера fb2cng.exe та модифікує файли конфігурації YAML." +
+                               "\n1. Налаштуйте необхідні параметри." +
+                               "\n2. Використовуйте конструктор для створення структури папок та імені." +
+                               "\n3. Натисніть 'Зберегти.'" +
+                               "\n\nСтворено: Jurchos & Gemini" +
+                               "\nВерсія: 0.5",
                 ["GenTitle"] = "Успіх",
                 ["GenSuccess"] = "config.yaml успішно згенеровано!"
             };
@@ -160,7 +165,7 @@ namespace fb2cng_Configurator
             // 3. РОСІЙСЬКА ЛОКАЛІЗАЦІЯ
             Localization["Russian"] = new Dictionary<string, string>
             {
-                ["Title"] = "Конфигуратор шаблонов fb2cng",
+                ["Title"] = "Конфигуратор шаблона fb2cng",
                 ["Language"] = "Язык:",
                 ["DumpConfig"] = "Загрузить дефолтный config.yaml",
                 ["ConfigName"] = "Имя пользовательского шаблона:",
@@ -168,7 +173,7 @@ namespace fb2cng_Configurator
                 ["Fb2Name"] = "Сохранить имя fb2 для исходного файла",
                 ["Help"] = "Справка",
                 ["Theme"] = "Тема",
-                ["Ok"] = "ОК",
+                ["Ok"] = "Сохранить",
                 ["Cancel"] = "Отмена",
                 ["ErrTitle"] = "Ошибка",
                 ["ErrFbc"] = "Ошибка: fbc.exe не найден в папке с программой!",
@@ -188,22 +193,25 @@ namespace fb2cng_Configurator
                 ["Item_Date"] = "Дата (.Date)",
                 ["Item_Source"] = "Базовое имя файла (.SourceFile)",
                 ["Item_Uuid"] = "UUID книги (.BookID)",
-                ["Short_id"] = "Сокращенный ID книги (_xx)",
+                ["Item_Short_Uuid"] = "Сокращенный ID (_xx), для дублей",
                 ["FootnotesMode"] = "Способ отображения сносок:",
                 ["TocType"] = "Тип навигационной иерархии:",
                 ["OpenCover"] = "Открытие книги с титульной страницы",
                 ["FixZip"] = "Удалить дескриптор данных (Fix ZIP)",
-                ["SaveSuccessTitle"] = "Успех",
                 ["SaveErrorTitle"] = "Ошибка сохранения",
-                ["ErrAccessDenied"] = "Ошибка доступа: Файл '{0}' заблокирован!\nПроверьте, не установлен ли атрибут 'Только для чтения', или не открыт ли он в другой программе.",
+                ["ErrReadOnly"] = "Ошибка доступа:\n Файл '{0}' заблокирован!\nПроверьте, не установлен ли атрибут 'Только для чтения', или не открыт ли он в другой программе.",
+                ["ErrAccessDenied"] = "Ошибка доступа:\n Отказано в доступе к файлу '{0}'!\nЗапустите программу от имени Администратора.",
+                ["SaveSuccessTitle"] = "Успех",
                 ["SaveSuccess"] = "Конфигурация успешно сохранена в файл {0}!",
                 ["YamlTitle"] = "Ошибка YAML",
                 ["YamlErr"] = "Ошибка: Ключ '{0}' не найден в файле config.yaml!",
-                ["HelpText"] = "Справка конфигуратора fb2cng:\n\n1. Настройте необходимые параметры." +
-                                                               "\n2. Используйте конструктор для создания структуры папок и имени." +
-                                                               "\n3. Нажмите ОК для сохранения." +
-                                                               "\n\nСоздано: Jurchos & Gemini" +
-                                                               "\nВерсия: 0.3",
+                ["HelpText"] = "Конфигуратор шаблона fb2cng\nРазработано для набора инструментов fb2cng GUI." +
+                               "\n\nПрограмма автоматически собирает Go-шаблон для консольного конвертера fb2cng.exe и модифицирует файлы конфигурации YAML." +
+                               "\n1. Настройте необходимые параметры." +
+                               "\n2. Используйте конструктор для создания структуры папок и имени." +
+                               "\n3. Нажмите 'Сохранить'." +
+                               "\n\nСоздано: Jurchos & Gemini" +
+                               "\nВерсия: 0.5",
                 ["GenTitle"] = "Успех",
                 ["GenSuccess"] = "config.yaml успешно сгенерирован!"
             };
