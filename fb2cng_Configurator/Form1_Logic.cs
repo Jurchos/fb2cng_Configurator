@@ -1,8 +1,6 @@
 ﻿using System;
-using System.Diagnostics;
 using System.Drawing;
 using System.IO;
-using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
@@ -10,6 +8,10 @@ namespace fb2cng_Configurator
 {
     public partial class Form1 : Form
     {
+        // Логічні прапорці захисту від зациклювання графічних подій
+        private bool _isThemeApplying = false;
+        private bool _isChangingStates = false;
+
         // 1. Керування мовою та локалізацією
         private void LangComboBox_SelectedIndexChanged(object sender, EventArgs e)
         {
@@ -20,19 +22,17 @@ namespace fb2cng_Configurator
                 default: Config.CurrentLanguage = "English"; break;
             }
             UpdateLocalization();
-            ApplyTheme(); // Перезапуск для оновлення кольорів папок на новій мові
+            ApplyTheme();
+            Config.SaveSettings(); // Миттєве збереження обраної мови
         }
 
         private void UpdateLocalization()
         {
             var loc = Config.Localization[Config.CurrentLanguage];
 
-            string GetText(string key, string defaultText)
-            {
-                return loc.ContainsKey(key) ? loc[key] : defaultText;
-            }
+            string GetText(string key, string defaultText) => loc.ContainsKey(key) ? loc[key] : defaultText;
 
-            this.Text = GetText("Title", "fb2cng Configurator");
+            Text = GetText("Title", "fb2cng Configurator");
             lblLang.Text = GetText("Language", "Language:");
             btnDumpConfig.Text = GetText("DumpConfig", "Dump Default Config");
             lblConfigName.Text = GetText("ConfigName", "Config Name:");
@@ -44,7 +44,11 @@ namespace fb2cng_Configurator
             btnOk.Text = GetText("Ok", "OK");
             btnCancel.Text = GetText("Cancel", "Cancel");
 
-            lblOutNameTitle.Text = GetText("OutNameTitle", "Output Name Template Constructor");
+            if (lblOutNameTitle != null)
+            {
+                lblOutNameTitle.Text = GetText("OutNameTitle", "Output Name Template Constructor");
+            }
+
             chkTranslit.Text = GetText("Translit", "Transliterate Output Name");
             chkReaderSize.Text = GetText("ReaderSize", "Set Custom Display Size");
             lblWidth.Text = GetText("Width", "W:");
@@ -72,6 +76,7 @@ namespace fb2cng_Configurator
                 for (int i = 0; i < 8; i++)
                 {
                     if (cmbOutFields[i] == null) continue;
+                    cmbOutFields[i].BeginUpdate();
 
                     int currSel = cmbOutFields[i].SelectedIndex;
                     cmbOutFields[i].Items.Clear();
@@ -81,70 +86,93 @@ namespace fb2cng_Configurator
                         cmbOutFields[i].Items.Add(GetText(itemKeys[k], defaultItems[k]));
                     }
                     cmbOutFields[i].SelectedIndex = currSel >= 0 ? currSel : 0;
+                    cmbOutFields[i].EndUpdate();
                 }
             }
         }
 
-        // 2. Керування візуальною темою
+        // 2. Керування візуальною темою з блокуванням мерехтіння
         private void ApplyTheme()
         {
-            if (Config.IsDarkTheme)
+            if (_isThemeApplying) return;
+            _isThemeApplying = true;
+
+            // Повністю забороняємо Windows надсилати події малювання для цього вікна
+            SendMessage(this.Handle, WM_SETREDRAW, false, 0);
+            SuspendLayout();
+
+            try
             {
-                Color darkBg = Color.FromArgb(37, 37, 38);
-                Color elementBg = Color.FromArgb(45, 45, 48);
-                Color textWhite = Color.FromArgb(245, 245, 245);
-                Color limeAccent = Color.Lime;
+                if (Config.IsDarkTheme)
+                {
+                    Color darkBg = Color.FromArgb(37, 37, 38);
+                    Color elementBg = Color.FromArgb(45, 45, 48);
+                    Color textWhite = Color.FromArgb(245, 245, 245);
+                    Color limeAccent = Color.Lime;
+                    Color textGray = Color.FromArgb(140, 140, 140);
 
-                this.BackColor = darkBg;
-                scrollMenuPanel.BackColor = darkBg;
-                footerPanel.BackColor = elementBg;
-                grpOutName.BackColor = darkBg;
+                    BackColor = darkBg;
+                    scrollMenuPanel.BackColor = darkBg;
+                    footerPanel.BackColor = elementBg;
+                    grpOutName.BackColor = darkBg;
 
-                SetControlsTheme(this, textWhite, elementBg, limeAccent);
+                    SetControlsTheme(this, textWhite, textGray, elementBg, limeAccent, true);
+                }
+                else
+                {
+                    this.BackColor = SystemColors.Control;
+                    scrollMenuPanel.BackColor = SystemColors.Window;
+                    footerPanel.BackColor = SystemColors.ControlLight;
+                    grpOutName.BackColor = SystemColors.Window;
+
+                    SetControlsTheme(this, SystemColors.ControlText, SystemColors.GrayText, SystemColors.Window, SystemColors.HotTrack, false);
+                }
             }
-            else
+            finally
             {
-                this.BackColor = SystemColors.Control;
-                scrollMenuPanel.BackColor = SystemColors.Window;
-                footerPanel.BackColor = SystemColors.ControlLight;
-                grpOutName.BackColor = SystemColors.Window;
+                this.ResumeLayout(true);
+                // Дозволяємо малювання назад
+                SendMessage(this.Handle, WM_SETREDRAW, true, 0);
 
-                SetControlsTheme(this, SystemColors.ControlText, SystemColors.Window, SystemColors.HotTrack);
+                // Примушуємо ОС перерендерити вікно та всі дочірні елементи знизу-вгору одним кадром
+                this.Refresh();
+
+                _isThemeApplying = false;
             }
         }
-
-        private void SetControlsTheme(Control parent, Color foreColor, Color backColor, Color folderColor)
+        private void ComboBox_DrawItem(object sender, DrawItemEventArgs e)
         {
-            foreach (Control c in parent.Controls)
-            {
-                if (c is Label || c is GroupBox)
-                {
-                    c.ForeColor = foreColor;
-                }
-                else if (c is CheckBox chk)
-                {
-                    // Абсолютно надійне визначення через Tag та Name батьківського контейнера
-                    if ((chk.Tag != null && chk.Tag.ToString() == "FolderCheckBox") ||
-                        (chk.Parent != null && chk.Parent.Name == "templateGrid"))
-                        chk.ForeColor = folderColor;
-                    else
-                        chk.ForeColor = foreColor;
-                }
-                else if (c is TextBox || c is ComboBox || c is Button)
-                {
-                    c.ForeColor = foreColor;
-                    c.BackColor = backColor;
-                }
+            if (e.Index < 0 || !(sender is ComboBox cb)) return;
 
-                if (c.HasChildren)
+            bool isControlDisabled = !cb.Enabled || (cb.Parent != null && !cb.Parent.Enabled);
+            e.DrawBackground();
+
+            Color drawTextColor = isControlDisabled ? Color.FromArgb(140, 140, 140) : cb.ForeColor;
+
+            if (isControlDisabled)
+            {
+                using (SolidBrush bgBrush = new SolidBrush(Color.FromArgb(45, 45, 48)))
                 {
-                    SetControlsTheme(c, foreColor, backColor, folderColor);
+                    e.Graphics.FillRectangle(bgBrush, e.Bounds);
                 }
             }
+
+            TextRenderer.DrawText(
+                e.Graphics,
+                cb.Items[e.Index].ToString(),
+                cb.Font,
+                e.Bounds,
+                drawTextColor,
+                TextFormatFlags.VerticalCenter | TextFormatFlags.Left
+            );
+
+            if (!isControlDisabled) e.DrawFocusRectangle();
         }
-        // 3. Взаємодія елементів
+
         private void BtnBrowseCss_Click(object sender, EventArgs e)
         {
+            if (!chkCss.Checked) return;
+
             using (OpenFileDialog ofd = new OpenFileDialog())
             {
                 ofd.Filter = "CSS Files (*.css)|*.css";
@@ -160,353 +188,441 @@ namespace fb2cng_Configurator
 
         private void ChkFb2Name_CheckedChanged(object sender, EventArgs e)
         {
-            if (chkFb2Name.Checked)
-            {
-                grpOutName.Enabled = false;
-                foreach (var cmb in cmbOutFields) { cmb.SelectedIndex = 0; cmb.Enabled = false; }
-                foreach (var chk in chkAsFolder) { chk.Checked = false; chk.Enabled = false; }
-            }
-            else
-            {
-                grpOutName.Enabled = true;
-                cmbOutFields[0].Enabled = true;
-                CmbOutFields_SelectedIndexChanged(0);
-            }
-        }
+            if (_isChangingStates) return;
+            _isChangingStates = true;
 
-        private void CmbOutFields_SelectedIndexChanged(int index)
-        {
-            bool hasSelection = cmbOutFields[index].SelectedIndex > 0;
-            chkAsFolder[index].Enabled = hasSelection;
-            if (!hasSelection) chkAsFolder[index].Checked = false;
-
-            if (index < 7)
+            try
             {
-                if (hasSelection)
+                if (!Config.IsDarkTheme) grpOutName.Enabled = !chkFb2Name.Checked;
+
+                if (chkFb2Name.Checked)
                 {
-                    cmbOutFields[index + 1].Enabled = true;
+                    foreach (var cmb in cmbOutFields) { cmb.SelectedIndex = 0; cmb.Enabled = false; }
+                    foreach (var chk in chkAsFolder) { chk.Checked = false; chk.Enabled = false; }
                 }
                 else
                 {
-                    for (int i = index + 1; i < 8; i++)
-                    {
-                        cmbOutFields[i].SelectedIndex = 0;
-                        cmbOutFields[i].Enabled = false;
-                        chkAsFolder[i].Checked = false;
-                        chkAsFolder[i].Enabled = false;
-                    }
+                    foreach (var cmb in cmbOutFields) cmb.Enabled = true;
+                    cmbOutFields[0].Enabled = true;
+                    CmbOutFields_SelectedIndexChanged(0);
                 }
             }
+            finally { _isChangingStates = false; }
+            ApplyTheme();
         }
 
-        // 4. Логіка взаємодії з fbc.exe та файлами YAML (Повністю асинхронний запуск процесу)
-        private async void BtnDumpConfig_Click(object sender, EventArgs e)
+        private void SetControlsTheme(Control parent, Color foreColor, Color disabledColor, Color backColor, Color folderColor, bool isDark)
         {
-            string exePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "fbc.exe");
+            bool isOutNameDisabled = isDark ? chkFb2Name.Checked : !grpOutName.Enabled;
 
-            if (!File.Exists(exePath))
+            foreach (Control c in parent.Controls)
             {
-                string key = Config.CurrentLanguage == "Ukrainian" ? "ErrFbc" : "ErrFbc";
-                var text = Config.Localization.ContainsKey(Config.CurrentLanguage) && Config.Localization[Config.CurrentLanguage].ContainsKey("ErrFbc")
-                    ? Config.Localization[Config.CurrentLanguage]["ErrFbc"]
-                    : "Error: fbc.exe not found!";
-                MessageBox.Show(text, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                return;
-            }
+                bool isControlDisabled = !c.Enabled || (c.Parent == grpOutName && isOutNameDisabled) || (isDark && c == btnBrowseCss && !chkCss.Checked);
 
-            // Блокуємо кнопку на час генерації для запобігання подвійним клікам
-            btnDumpConfig.Enabled = false;
-            string previousText = btnDumpConfig.Text;
-            btnDumpConfig.Text = Config.CurrentLanguage == "Ukrainian" ? "Генерація..." : "Generating...";
-
-            try
-            {
-                ProcessStartInfo psi = new ProcessStartInfo
+                if (c is GroupBox gb)
                 {
-                    FileName = exePath,
-                    Arguments = "dumpconfig --default config.yaml",
-                    WorkingDirectory = AppDomain.CurrentDomain.BaseDirectory,
-                    CreateNoWindow = true,
-                    UseShellExecute = false
-                };
-
-                // Запуск процесу в окремому потоці (Інтерфейс програми залишається повністю активним!)
-                await Task.Run(() =>
-                {
-                    using (Process proc = Process.Start(psi))
-                    {
-                        proc?.WaitForExit();
-                    }
-                });
-
-                string successMsg = Config.CurrentLanguage == "Ukrainian" ? "Файл config.yaml успішно згенеровано!" : "config.yaml successfully generated!";
-                MessageBox.Show(successMsg, "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show(ex.Message, "Process Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-            finally
-            {
-                btnDumpConfig.Text = previousText;
-                btnDumpConfig.Enabled = true;
-            }
-        }
-        // --- 5. ЗБЕРЕЖЕННЯ ТА ПЕРЕЗАПИС ПАРАМЕТРІВ YAML ---
-        private void SaveYamlConfiguration()
-        {
-            string sourcePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "config.yaml");
-            string targetFileName = txtConfigName.Text.Trim();
-
-            if (string.IsNullOrEmpty(targetFileName)) targetFileName = "config.yaml";
-            if (!targetFileName.EndsWith(".yaml", StringComparison.OrdinalIgnoreCase)) targetFileName += ".yaml";
-
-            string targetPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, targetFileName);
-
-            // Якщо дефолтного файлу конфігу немає в папці, пробуємо згенерувати його на льоту
-            if (!File.Exists(sourcePath))
-            {
-                BtnDumpConfig_Click(null, null);
-                if (!File.Exists(sourcePath)) return;
-            }
-
-            string[] lines = File.ReadAllLines(sourcePath, Encoding.UTF8);
-
-            // 1. Обробка шляху користувацького CSS
-            if (chkCss.Checked)
-            {
-                lines = ReplaceYamlValueLine(lines, "stylesheet_path", $"\"{txtCssPath.Text}\"");
-                if (lines == null) return;
-            }
-
-            // 2. Обробка прапорця транслітерації назви
-            string newTranslitValue = chkTranslit.Checked ? "true" : "false";
-            lines = ReplaceYamlValueLine(lines, "file_name_transliterate", newTranslitValue);
-            if (lines == null) return;
-
-            // 3. Обробка фізичних розмірів екрана електронної книги
-            if (chkReaderSize.Checked)
-            {
-                lines = ReplaceYamlValueLine(lines, "width", txtWidth.Text); if (lines == null) return;
-                lines = ReplaceYamlValueLine(lines, "height", txtHeight.Text); if (lines == null) return;
-                lines = ReplaceYamlValueLine(lines, "dpi", txtDpi.Text); if (lines == null) return;
-            }
-
-            // 4. Обробка виносок та обкладинок (Виправлено переплутані аліаси ключі-значення!)
-            if (chkCover.Checked) { lines = ReplaceYamlValueLine(lines, "toc_type", $"\"{cmbCoverMode.SelectedItem}\""); if (lines == null) return; }
-            if (chkNotes.Checked) { lines = ReplaceYamlValueLine(lines, "mode", $"\"{cmbNotesMode.SelectedItem}\""); if (lines == null) return; }
-            if (chkOpenFromCover.Checked) { lines = ReplaceYamlValueLine(lines, "open_from_cover", "true"); if (lines == null) return; }
-            if (chkFixZip.Checked) { lines = ReplaceYamlValueLine(lines, "fix_zip", "true"); if (lines == null) return; }
-
-            // 5. Формування та запис фінального Go-шаблону для назви книги
-            string templateBlock = chkFb2Name.Checked ? "        {{- .OriginalFileName -}}" : BuildGoTemplateFromUI();
-
-            if (!string.IsNullOrEmpty(templateBlock))
-            {
-                lines = ReplaceOutputTemplateBlockSafely(lines, templateBlock);
-                if (lines == null) return;
-            }
-
-            // Запис готового масиву рядків у новий конфігураційний файл
-            try
-            {
-                File.WriteAllLines(targetPath, lines, Encoding.UTF8);
-                Config.SaveSettings();
-
-                var loc = Config.Localization[Config.CurrentLanguage];
-                MessageBox.Show(string.Format(loc["SaveSuccess"], targetFileName), "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                this.Close();
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show(ex.Message, "Save Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-        }
-
-        private string[] ReplaceYamlValueLine(string[] lines, string key, string newValue)
-        {
-            bool found = false;
-            for (int i = 0; i < lines.Length; i++)
-            {
-                string trimmed = lines[i].TrimStart();
-
-                // Шукаємо закоментовані дефолтні рядки (наприклад: #width: 1072)
-                if (trimmed.StartsWith("#"))
-                {
-                    string withoutComment = trimmed.Substring(1).TrimStart();
-                    if (withoutComment.StartsWith(key + ":"))
-                    {
-                        string padding = lines[i].Substring(0, lines[i].IndexOf('#'));
-                        lines[i] = $"{padding}{key}: {newValue}";
-                        found = true;
-                        break;
-                    }
+                    gb.BackColor = parent.BackColor;
+                    gb.ForeColor = isDark ? (chkFb2Name.Checked ? disabledColor : foreColor) : SystemColors.ControlText;
                 }
-                // Шукаємо розкоментовані активні рядки (наприклад: width: 1264)
-                else if (trimmed.StartsWith(key + ":"))
+                else if (c is Label lbl)
                 {
-                    string padding = lines[i].Substring(0, lines[i].IndexOf(key));
-                    lines[i] = $"{padding}{key}: {newValue}";
-                    found = true;
-                    break;
+                    lbl.ForeColor = isControlDisabled ? disabledColor : foreColor;
+                    lbl.BackColor = Color.Transparent;
                 }
-            }
-
-            if (!found)
-            {
-                ShowYamlError(key);
-                return null;
-            }
-
-            return lines;
-        }
-        // --- 6. БЕЗПЕЧНА ЗАМІНА БАГАТОРАД КОВОГО БЛОКУ YAML ---
-        private string[] ReplaceOutputTemplateBlockSafely(string[] lines, string newTemplateCode)
-        {
-            System.Collections.Generic.List<string> result = new System.Collections.Generic.List<string>();
-            bool blockFound = false;
-            bool skipOldBlockMode = false;
-
-            for (int i = 0; i < lines.Length; i++)
-            {
-                string currentLine = lines[i];
-                string trimmed = currentLine.TrimStart();
-
-                // Визначаємо початок секції шаблону назви (активної або закоментованої)
-                if (!blockFound && (trimmed.StartsWith("output_name_template:") || (trimmed.StartsWith("#") && trimmed.Substring(1).TrimStart().StartsWith("output_name_template:"))))
+                else if (c is CheckBox chk)
                 {
-                    blockFound = true;
-                    int index = currentLine.IndexOf("output_name_template:");
-                    if (index == -1) index = currentLine.IndexOf("#");
-                    string padding = index > 0 ? currentLine.Substring(0, index) : "";
-
-                    // Записуємо заголовок блоку із символом літералу "|" для Go-шаблонів
-                    result.Add($"{padding}output_name_template: |");
-                    result.Add(newTemplateCode);
-                    skipOldBlockMode = true;
-                    continue;
+                    chk.ForeColor = !isControlDisabled && chk.Tag?.ToString() == "FolderCheckBox" ? folderColor : (isControlDisabled ? disabledColor : foreColor);
+                    chk.BackColor = Color.Transparent;
                 }
-
-                // Логіка пропуску старого вкладеного вмісту Go-шаблону
-                if (skipOldBlockMode)
+                else if (c is TextBox txt)
                 {
-                    if (string.IsNullOrEmpty(currentLine) || currentLine.Trim().Length == 0) continue;
-
-                    int leadingSpaces = currentLine.Length - currentLine.TrimStart().Length;
-
-                    // Якщо відступи стали меншими за 8 пробілів — це кінець блоку шаблону
-                    if (leadingSpaces < 8)
+                    txt.BackColor = backColor;
+                    txt.ForeColor = isControlDisabled ? disabledColor : foreColor;
+                }
+                else if (c is Button btn)
+                {
+                    if (isDark)
                     {
-                        skipOldBlockMode = false;
+                        btn.FlatStyle = FlatStyle.Flat;
+                        btn.FlatAppearance.BorderColor = (btn == btnBrowseCss && !chkCss.Checked) ? Color.FromArgb(55, 55, 58) : Color.FromArgb(100, 100, 105);
+                        btn.BackColor = (btn == btnBrowseCss && !chkCss.Checked) ? Color.FromArgb(40, 40, 42) : backColor;
+                        btn.ForeColor = (btn == btnBrowseCss && !chkCss.Checked) ? disabledColor : foreColor;
                     }
                     else
                     {
-                        continue; // Пропускаємо старий рядок Go-шаблону
+                        btn.FlatStyle = FlatStyle.Standard;
+                        btn.BackColor = SystemColors.Control;
+                        btn.ForeColor = SystemColors.ControlText;
                     }
                 }
+                else if (c is ComboBox cb)
+                {
+                    cb.BackColor = backColor;
+                    cb.ForeColor = isControlDisabled ? disabledColor : foreColor;
+                    cb.DropDownStyle = ComboBoxStyle.DropDownList;
+                    cb.FlatStyle = isDark ? FlatStyle.Flat : FlatStyle.Standard;
+                    cb.DrawMode = isDark ? DrawMode.OwnerDrawFixed : DrawMode.Normal;
+                    cb.DrawItem -= ComboBox_DrawItem;
+                    if (isDark) cb.DrawItem += ComboBox_DrawItem;
+                }
 
-                result.Add(currentLine);
+                if (c.HasChildren) SetControlsTheme(c, foreColor, disabledColor, backColor, folderColor, isDark);
             }
-
-            if (!blockFound)
-            {
-                ShowYamlError("output_name_template");
-                return null;
-            }
-
-            return result.ToArray();
         }
 
-        // --- 7. ГЕНЕРАТОР СКЛАДНИХ GO-ШАБЛОНІВ ДЛЯ FB2CNG ---
-        private string BuildGoTemplateFromUI()
+        public DialogResult ShowCustomMessageBox(string text, string caption, MessageBoxButtons buttons, MessageBoxIcon icon)
         {
-            StringBuilder sb = new StringBuilder();
-            bool isFirst = true;
+            using (Form msgForm = new Form())
+            {
+                // Використовуємо вашу глобальну змінну теми
+                bool isDark = Config.IsDarkTheme;
 
+                // Визначаємо українську мову з вашого глобального конфігу
+                bool isUa = Config.CurrentLanguage == "Ukrainian";
+
+                msgForm.Text = caption;
+                msgForm.FormBorderStyle = FormBorderStyle.FixedDialog;
+                msgForm.MaximizeBox = false;
+                msgForm.MinimizeBox = false;
+                msgForm.StartPosition = FormStartPosition.CenterScreen;
+                msgForm.Font = new Font("Segoe UI", 10F);
+                msgForm.BackColor = isDark ? Color.FromArgb(24, 24, 24) : Color.FromArgb(245, 245, 245);
+
+                // --- 1. АВТОМАТИЧНЕ ВИЗНАЧЕННЯ МАСШТАБУ DPI ---
+                float currentScale = msgForm.Font.Height / 18f;
+
+                // --- 2. МАСШТАБОВАНІ ВІДСТУПИ ТА РОЗМІРИ ---
+                int paddingTop = (int)(18 * currentScale);
+                int paddingMiddle = (int)(15 * currentScale);
+                int paddingBottom = (int)(12 * currentScale);
+                int buttonHeight = (int)(32 * currentScale);
+                int buttonWidth = (int)(100 * currentScale);
+
+                // Збільшуємо базову ширину, якщо є іконка, щоб текст вміщався
+                int baseWidth = (icon != MessageBoxIcon.None) ? 360 : 330;
+                int calculatedWidth = (int)(baseWidth * currentScale);
+                msgForm.ClientSize = new Size(calculatedWidth, msgForm.ClientSize.Height);
+
+                // Налаштування іконки
+                PictureBox picIcon = null;
+                // Зменшуємо базовий розмір іконки до 24 для компактності
+                int iconSize = (int)(24 * currentScale);
+                int textTopOffset = paddingTop;
+
+                if (icon != MessageBoxIcon.None)
+                {
+                    picIcon = new PictureBox
+                    {
+                        Size = new Size(iconSize, iconSize),
+                        SizeMode = PictureBoxSizeMode.Zoom,
+                        // ЦЕНТРУЄМО ІКОНКУ ПО ГОРИЗОНТАЛІ
+                        Location = new Point((msgForm.ClientSize.Width - iconSize) / 2, paddingTop)
+                    };
+
+                    // Малюємо компактні векторні іконки
+                    Bitmap bmp = new Bitmap(iconSize, iconSize);
+                    using (Graphics g = Graphics.FromImage(bmp))
+                    {
+                        g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+                        if (icon == MessageBoxIcon.Error || icon == MessageBoxIcon.Hand || icon == MessageBoxIcon.Stop)
+                        {
+                            g.FillEllipse(Brushes.Crimson, 0, 0, iconSize - 1, iconSize - 1);
+                            using (Pen pen = new Pen(Color.White, 2.5f))
+                            {
+                                int offset = iconSize / 4;
+                                g.DrawLine(pen, offset, offset, iconSize - offset, iconSize - offset);
+                                g.DrawLine(pen, iconSize - offset, offset, offset, iconSize - offset);
+                            }
+                        }
+                        else if (icon == MessageBoxIcon.Information || icon == MessageBoxIcon.Asterisk)
+                        {
+                            Color infoColor = isDark ? Color.FromArgb(0, 140, 255) : Color.FromArgb(0, 102, 204);
+                            using (Brush infoBrush = new SolidBrush(infoColor)) g.FillEllipse(infoBrush, 0, 0, iconSize - 1, iconSize - 1);
+                            g.DrawString("i", new Font("Georgia", 12F, FontStyle.Bold | FontStyle.Italic), Brushes.White, new PointF(iconSize * 0.26f, iconSize * 0.08f));
+                        }
+                        else if (icon == MessageBoxIcon.Warning || icon == MessageBoxIcon.Exclamation)
+                        {
+                            PointF[] points = { new PointF(iconSize / 2f, 0), new PointF(0, iconSize - 1), new PointF(iconSize - 1, iconSize - 1) };
+                            g.FillPolygon(Brushes.Orange, points);
+                            g.DrawString("!", new Font("Segoe UI", 11F, FontStyle.Bold), Brushes.White, new PointF(iconSize * 0.35f, iconSize * 0.18f));
+                        }
+                    }
+                    picIcon.Image = bmp;
+                    msgForm.Controls.Add(picIcon);
+
+                    // Зменшений відступ тексту від нижнього краю іконки (усього 6 пікселів, масштабованих під DPI)
+                    textTopOffset = picIcon.Bottom + (int)(6 * currentScale);
+                }
+
+                // Налаштування RichTextBox для тексту
+                RichTextBox rtbText = new RichTextBox
+                {
+                    Text = text,
+                    Width = msgForm.ClientSize.Width - (int)(32 * currentScale),
+                    ForeColor = isDark ? Color.White : Color.Black,
+                    BackColor = msgForm.BackColor,
+                    BorderStyle = BorderStyle.None,
+                    ReadOnly = true,
+                    ScrollBars = RichTextBoxScrollBars.None,
+                    TabStop = false,
+                    TabIndex = 99
+                };
+
+                // ТЕКСТ ЗАВЖДИ ПО ЦЕНТРУ
+                rtbText.SelectAll();
+                rtbText.SelectionAlignment = HorizontalAlignment.Center;
+                rtbText.DeselectAll();
+
+                rtbText.MouseDown += (s, e) => { _ = HideCaret(rtbText.Handle); _ = msgForm.Focus(); };
+                rtbText.GotFocus += (s, e) => { _ = HideCaret(rtbText.Handle); };
+
+                msgForm.Controls.Add(rtbText);
+
+                // --- 3. ДИНАМІЧНИЙ РОЗРАХУНОК ВИСОТИ ТЕКСТУ ---
+                int lastCharIndex = rtbText.TextLength > 0 ? rtbText.TextLength - 1 : 0;
+                Point lastCharPos = rtbText.GetPositionFromCharIndex(lastCharIndex);
+                int textHeight = lastCharPos.Y + rtbText.Font.Height + (int)(10 * currentScale);
+
+                int minTextHeight = (int)(40 * currentScale);
+                if (textHeight < minTextHeight) textHeight = minTextHeight;
+                rtbText.Height = textHeight;
+
+                // Позиціонуємо текст суворо по центру вікна по горизонталі, а по вертикалі — нижче іконки
+                rtbText.Location = new Point((msgForm.ClientSize.Width - rtbText.Width) / 2, textTopOffset);
+
+                // Розраховуємо фінальну Y-координату для кнопок під текстом
+                int buttonsY = rtbText.Bottom + paddingMiddle;
+
+                Color btnBg = isDark ? Color.FromArgb(50, 50, 50) : Color.FromArgb(230, 230, 230);
+                Color btnTextCol = isDark ? Color.White : Color.Black;
+                Color accentBg = isDark ? Color.FromArgb(0, 102, 204) : Color.FromArgb(0, 120, 215);
+
+                Button primaryButton = null;
+
+                if (buttons == MessageBoxButtons.OK)
+                {
+                    Button btnOkCustom = new Button
+                    {
+                        Text = "OK",
+                        DialogResult = DialogResult.OK,
+                        Size = new Size(buttonWidth, buttonHeight),
+                        FlatStyle = FlatStyle.Flat,
+                        BackColor = accentBg,
+                        ForeColor = Color.White,
+                        TabIndex = 0
+                    };
+                    btnOkCustom.FlatAppearance.BorderSize = 0;
+                    MakeButtonRounded(btnOkCustom, (int)(4 * currentScale)); // Використовуємо ваш покращений метод
+
+                    btnOkCustom.Location = new Point((msgForm.ClientSize.Width - btnOkCustom.Width) / 2, buttonsY);
+
+                    msgForm.Controls.Add(btnOkCustom);
+                    msgForm.AcceptButton = btnOkCustom;
+                    primaryButton = btnOkCustom;
+                }
+                else if (buttons == MessageBoxButtons.OKCancel)
+                {
+                    Button btnOkCustom = new Button
+                    {
+                        Text = "OK",
+                        DialogResult = DialogResult.OK,
+                        Size = new Size(buttonWidth, buttonHeight),
+                        FlatStyle = FlatStyle.Flat,
+                        BackColor = accentBg,
+                        ForeColor = Color.White,
+                        TabIndex = 0
+                    };
+                    btnOkCustom.FlatAppearance.BorderSize = 0;
+                    MakeButtonRounded(btnOkCustom, (int)(4 * currentScale));
+
+                    Button btnCancelCustom = new Button
+                    {
+                        Text = isUa ? "Скасувати" : "Cancel",
+                        DialogResult = DialogResult.Cancel,
+                        Size = new Size(buttonWidth, buttonHeight),
+                        FlatStyle = FlatStyle.Flat,
+                        BackColor = btnBg,
+                        ForeColor = btnTextCol,
+                        TabIndex = 1
+                    };
+                    btnCancelCustom.FlatAppearance.BorderColor = isDark ? Color.FromArgb(80, 80, 80) : Color.FromArgb(200, 200, 200);
+                    MakeButtonRounded(btnCancelCustom, (int)(4 * currentScale));
+
+                    int spacing = (int)(15 * currentScale);
+                    int totalButtonsWidth = btnOkCustom.Width + spacing + btnCancelCustom.Width;
+                    int startX = (msgForm.ClientSize.Width - totalButtonsWidth) / 2;
+
+                    btnOkCustom.Location = new Point(startX, buttonsY);
+                    btnCancelCustom.Location = new Point(startX + btnOkCustom.Width + spacing, buttonsY);
+
+                    msgForm.Controls.AddRange(new Control[] { btnOkCustom, btnCancelCustom });
+                    msgForm.AcceptButton = btnOkCustom;
+                    msgForm.CancelButton = btnCancelCustom;
+                    primaryButton = btnOkCustom;
+                }
+
+                int finalHeight = buttonsY + buttonHeight + paddingBottom;
+                msgForm.ClientSize = new Size(calculatedWidth, finalHeight);
+
+                var primaryScreen = Screen.FromControl(this).Bounds;
+                msgForm.Location = new Point(
+                    primaryScreen.Left + ((primaryScreen.Width - msgForm.Width) / 2),
+                    primaryScreen.Top + ((primaryScreen.Height - msgForm.Height) / 2)
+                );
+
+                msgForm.StartPosition = FormStartPosition.CenterScreen;
+                msgForm.TopMost = true;
+
+                msgForm.Shown += (s, e) =>
+                {
+                    try
+                    {
+                        IntPtr msgFormHandle = msgForm.Handle;
+                        IntPtr foregroundWindowHandle = GetForegroundWindow();
+                        uint foregroundThreadId = GetWindowThreadProcessId(foregroundWindowHandle, IntPtr.Zero);
+                        uint currentThreadId = GetCurrentThreadId();
+
+                        if (foregroundThreadId != currentThreadId && foregroundThreadId != 0)
+                        {
+                            _ = AttachThreadInput(currentThreadId, foregroundThreadId, true);
+                            _ = SetForegroundWindow(msgFormHandle);
+                            _ = SetActiveWindow(msgFormHandle);
+                            msgForm.Activate();
+                            _ = AttachThreadInput(currentThreadId, foregroundThreadId, false);
+                        }
+                        else
+                        {
+                            _ = SetForegroundWindow(msgFormHandle);
+                            _ = SetActiveWindow(msgFormHandle);
+                            msgForm.Activate();
+                        }
+                    }
+                    catch { }
+
+                    if (primaryButton != null)
+                    {
+                        _ = primaryButton.Focus();
+                    }
+
+                    _ = msgForm.BeginInvoke(new Action(() => { _ = HideCaret(rtbText.Handle); }));
+                };
+
+                return msgForm.ShowDialog();
+            }
+        }
+
+
+        private void CmbOutFields_SelectedIndexChanged(int index)
+        {
+            bool internalCall = _isChangingStates;
+            if (!internalCall) _isChangingStates = true;
+
+            try
+            {
+                bool hasSelection = cmbOutFields[index].SelectedIndex > 0;
+                chkAsFolder[index].Enabled = hasSelection;
+                if (!hasSelection) chkAsFolder[index].Checked = false;
+
+                if (index < 7)
+                {
+                    if (hasSelection) cmbOutFields[index + 1].Enabled = true;
+                    else
+                    {
+                        for (int i = index + 1; i < 8; i++)
+                        {
+                            cmbOutFields[i].SelectedIndex = 0;
+                            cmbOutFields[i].Enabled = false;
+                            chkAsFolder[i].Checked = false;
+                            chkAsFolder[i].Enabled = false;
+                        }
+                    }
+                }
+            }
+            finally { if (!internalCall) _isChangingStates = false; }
+            if (!internalCall) ApplyTheme();
+        }
+
+        private async void BtnDumpConfig_Click(object sender, EventArgs e)
+        {
+            if (!Program.YamlService.IsEngineAvailable())
+            {
+                // 1. Отримуємо локалізований заголовок для помилки ("Error", "Помилка" тощо)
+                string caption = Config.Localization.ContainsKey(Config.CurrentLanguage) && Config.Localization[Config.CurrentLanguage].ContainsKey("ErrTitle")
+                    ? Config.Localization[Config.CurrentLanguage]["ErrTitle"]
+                    : "Error";
+
+                // 2. Отримуємо локалізований текст про відсутність двигуна fbc.exe
+                string text = Config.Localization.ContainsKey(Config.CurrentLanguage) && Config.Localization[Config.CurrentLanguage].ContainsKey("ErrFbc")
+                    ? Config.Localization[Config.CurrentLanguage]["ErrFbc"]
+                    : "Error: fbc.exe not found!";
+
+                // 3. Викликаємо наше кастомне вікно з іконкою помилки по центру
+                ShowCustomMessageBox(text, caption, MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            btnDumpConfig.Enabled = false;
+            string prevText = btnDumpConfig.Text;
+            btnDumpConfig.Text = Config.CurrentLanguage == "Ukrainian" ? "Генерація..." : "Generating...";
+
+            bool success = await Task.Run(() => Program.YamlService.ExecuteSyncDumpConfig());
+
+            btnDumpConfig.Text = prevText;
+            btnDumpConfig.Enabled = true;
+
+            if (success)
+            {
+                // 1. Отримуємо локалізований заголовок ("Success", "Успіх" тощо)
+                string caption = Config.Localization.ContainsKey(Config.CurrentLanguage) && Config.Localization[Config.CurrentLanguage].ContainsKey("GenTitle")
+                    ? Config.Localization[Config.CurrentLanguage]["GenTitle"]
+                    : "Success";
+
+                // 2. Отримуємо локалізоване повідомлення про успішну генерацію
+                string msg = Config.Localization.ContainsKey(Config.CurrentLanguage) && Config.Localization[Config.CurrentLanguage].ContainsKey("GenSuccess")
+                    ? Config.Localization[Config.CurrentLanguage]["GenSuccess"]
+                    : "config.yaml successfully generated!";
+
+                // 3. Виводимо наше відцентроване кастомне вікно
+                ShowCustomMessageBox(msg, caption, MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+        }
+
+        private void SaveYamlConfiguration()
+        {
+            int[] fieldIndexes = new int[8];
+            bool[] folderFlags = new bool[8];
             for (int i = 0; i < 8; i++)
             {
-                int selIndex = cmbOutFields[i].SelectedIndex;
-                if (selIndex <= 0) break; // Зупиняємося, якщо зустріли порожній елемент "[Не вибрано]"
-
-                string chunk = "";
-
-                switch (selIndex)
-                {
-                    case 1: // Автор книги (розумний вивід прізвища та ініціалів + ", et al" / "и др")
-                        chunk = "{{- $author := \"\" -}}{{- if gt (len .Authors) 0 -}}{{- with first .Authors -}}{{- if .LastName -}}{{- $author = .LastName -}}{{- if .FirstName }}{{ $author = printf \"%s %s\" $author .FirstName }}{{ end -}}{{- if .MiddleName }}{{ $author = printf \"%s %s\" $author .MiddleName }}{{ end -}}{{- else if .Nickname -}}{{- $author = .Nickname -}}{{- end -}}{{- end -}}{{- if gt (len .Authors) 1 -}}{{- if eq .Language \"ru\" -}}{{- $author = printf \"%s %s\" $author \"и др\" -}}{{- else -}}{{- $author = printf \"%s %s\" $author \", et al\" -}}{{- end -}}{{- end -}}{{- end -}}{{- if $author }}{{ printf \"%s\" $author }}{{ end -}}";
-                        break;
-                    case 2: // Чиста назва серії (якщо книга входить у серію)
-                        chunk = "{{- if gt (len .Series) 0 -}}{{- with first .Series -}}{{ .Name }}{{- end -}}{{- end -}}";
-                        break;
-                    case 3: // Назва книги + Двозначний номер у серії попереду (наприклад: "02 Назва")
-                        chunk = "{{- if gt (len .Series) 0 -}}{{- with first .Series -}}{{- if .Number }}{{ printf \"%02d \" .Number }}{{- end -}}{{- end -}}{{- end -}}{{- .Title -}}";
-                        break;
-                    case 4: // Дволітерний або трилітерний код мови книги
-                        chunk = "{{- .Language -}}";
-                        break;
-                    case 5: // Головний жанр книги
-                        chunk = "{{- if gt (len .Genres) 0 -}}{{ index .Genres 0 }}{{- end -}}";
-                        break;
-                    case 6: // Текстова дата створення чи публікації
-                        chunk = "{{- .Date -}}";
-                        break;
-                    case 7: // Оригінальне базове ім'я вхідного файлу
-                        chunk = "{{- .SourceFile -}}";
-                        break;
-                    case 8: // Унікальний ідентифікатор книги UUID
-                        chunk = "{{- .BookID -}}";
-                        break;
-                }
-
-                if (!string.IsNullOrEmpty(chunk))
-                {
-                    // Додаємо дефіс як роздільник елементів, якщо попередній елемент не був папкою
-                    if (!isFirst && !chkAsFolder[i - 1].Checked)
-                    {
-                        sb.Append(" - ");
-                    }
-
-                    sb.Append(chunk);
-
-                    // Якщо стоїть прапорець "як папка", створюємо вкладену директорію в структурі файлу
-                    if (chkAsFolder[i].Checked)
-                    {
-                        sb.Append("/");
-                    }
-
-                    isFirst = false;
-                }
+                fieldIndexes[i] = cmbOutFields[i].SelectedIndex;
+                folderFlags[i] = chkAsFolder[i].Checked;
             }
 
-            if (sb.Length > 0)
-            {
-                return "        " + sb.ToString();
-            }
+            bool saved = Program.YamlService.SaveConfiguration(
+                txtConfigName.Text, chkCss.Checked, txtCssPath.Text, chkTranslit.Checked,
+                chkReaderSize.Checked, txtWidth.Text, txtHeight.Text, txtDpi.Text,
+                chkCover.Checked, cmbCoverMode.SelectedItem?.ToString(),
+                chkNotes.Checked, cmbNotesMode.SelectedItem?.ToString(),
+                chkOpenFromCover.Checked, chkFixZip.Checked, chkFb2Name.Checked,
+                fieldIndexes, folderFlags
+            );
 
-            return "";
-        }
-
-        // --- 8. ДІАЛОГОВІ МОДЛЬНІ ВІКНА (ПОВНІСТЮ ЛОКАЛІЗОВАНІ) ---
-        private void ShowYamlError(string key)
-        {
-            string errMsg = Config.CurrentLanguage == "Ukrainian"
-                ? $"Помилка: Параметр '{key}' не знайдено в оригінальному файлі config.yaml!"
-                : (Config.CurrentLanguage == "Russian"
-                    ? $"Ошибка: Параметр '{key}' не найден в оригинальном файле config.yaml!"
-                    : $"Error: Parameter '{key}' was not found in the original config.yaml file!");
-
-            MessageBox.Show(errMsg, "YAML Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            if (saved) this.Close();
         }
 
         private void ShowHelp()
         {
-            string helpMessage = Config.CurrentLanguage == "Ukrainian"
-                ? "fb2cng Конфігуратор шаблонів\nРозроблено для набору інструментів fb2cng GUI.\n\nПрограма автоматично збирає правильні та валідні Go-шаблони для консольного конвертера fb2cng.exe та модифікує файли конфігурації YAML без порушення їх структури."
-                : (Config.CurrentLanguage == "Russian"
-                    ? "fb2cng Конфигуратор шаблонов\nРазработано для набора инструментов fb2cng GUI.\n\nПрограмма автоматически собирает правильные и валидные Go-шаблоны для консольного конвертера fb2cng.exe и модифицирует файлы конфигурации YAML без нарушения их структуры."
-                    : "fb2cng Template Configurator\nCreated for fb2cng GUI toolset.\n\nThis application automatically builds correct and valid Go templates for the fb2cng.exe engine and modifies YAML configuration files without corrupting their layout.");
+            // 1. Отримуємо локалізований заголовок вікна ("Довідка", "Help" тощо)
+            string caption = Config.Localization.ContainsKey(Config.CurrentLanguage) && Config.Localization[Config.CurrentLanguage].ContainsKey("Help")
+                ? Config.Localization[Config.CurrentLanguage]["Help"]
+                : "Help / Довідка";
 
-            MessageBox.Show(helpMessage, "Help / Довідка", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            // 2. Отримуємо локалізований розширений текст довідки
+            string msg = Config.Localization.ContainsKey(Config.CurrentLanguage) && Config.Localization[Config.CurrentLanguage].ContainsKey("HelpText")
+                ? Config.Localization[Config.CurrentLanguage]["HelpText"]
+                : "fb2cng Template Configurator\nCreated for fb2cng GUI toolset.";
+
+            // 3. Викликаємо наше кастомне вікно повідомлення
+            ShowCustomMessageBox(msg, caption, MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
     }
 }

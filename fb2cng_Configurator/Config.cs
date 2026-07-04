@@ -9,23 +9,15 @@ namespace fb2cng_Configurator
         public static string CurrentLanguage { get; set; } = "English";
         public static bool IsDarkTheme { get; set; } = false;
 
-        // Зберігатимемо відсоток від ширини та висоти екрана (дефолтні пропорції)
-        public static float WindowWidthPct { get; set; } = 0.35f;  // ~35% ширини екрана
-        public static float WindowHeightPct { get; set; } = 0.70f; // ~70% висоти екрана
+        private static readonly string settingsFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "app_settings.txt");
 
-        private static string settingsFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "app_settings.txt");
-
-        // Безпечне збереження налаштувань у папку користувача, якщо немає прав доступу до Program Files
         public static void SaveSettings()
         {
             try
             {
-                // Повертаємо використання вашої рідної змінної settingsFile
                 File.WriteAllLines(settingsFile, new string[] {
                     CurrentLanguage,
-                    IsDarkTheme.ToString(),
-                    WindowWidthPct.ToString(System.Globalization.CultureInfo.InvariantCulture),
-                    WindowHeightPct.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                    IsDarkTheme.ToString()
                 });
             }
             catch { }
@@ -35,18 +27,20 @@ namespace fb2cng_Configurator
         {
             try
             {
-                // Повертаємо використання вашої рідної змінної settingsFile
                 if (File.Exists(settingsFile))
                 {
                     string[] lines = File.ReadAllLines(settingsFile);
-                    if (lines != null && lines.Length >= 4)
+                    if (lines != null && lines.Length >= 2)
                     {
-                        if (!string.IsNullOrEmpty(lines[0])) CurrentLanguage = lines[0];
-                        if (bool.TryParse(lines[1], out bool dark)) IsDarkTheme = dark;
+                        if (!string.IsNullOrEmpty(lines[0]))
+                        {
+                            CurrentLanguage = lines[0];
+                        }
 
-                        // Виправлено простір імен: використовуємо NumberStyles замість Formatting
-                        if (float.TryParse(lines[2], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float w)) WindowWidthPct = w;
-                        if (float.TryParse(lines[3], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float h)) WindowHeightPct = h;
+                        if (bool.TryParse(lines[1], out bool dark))
+                        {
+                            IsDarkTheme = dark;
+                        }
                     }
                 }
             }
@@ -54,8 +48,6 @@ namespace fb2cng_Configurator
             {
                 CurrentLanguage = "English";
                 IsDarkTheme = false;
-                WindowWidthPct = 0.35f;
-                WindowHeightPct = 0.70f;
             }
         }
 
@@ -69,17 +61,17 @@ namespace fb2cng_Configurator
                 ["Title"] = "fb2cng Template Configurator",
                 ["Language"] = "Language:",
                 ["DumpConfig"] = "Load Default config.yaml",
-                ["ConfigName"] = "Config File Name:",
+                ["ConfigName"] = "Name of custom template:",
                 ["CssEnable"] = "Use Custom CSS Stylesheet",
-                ["Browse"] = "Browse...",
-                ["Fb2Name"] = "Use input fb2 filename for output",
+                ["Fb2Name"] = "Use the fb2 filename for the source file",
                 ["Help"] = "Help",
                 ["Theme"] = "Theme",
                 ["Ok"] = "OK",
                 ["Cancel"] = "Cancel",
+                ["ErrTitle"] = "Error",
                 ["ErrFbc"] = "Error: fbc.exe not found in the application folder!",
                 ["OutNameTitle"] = "Output File Name Structure",
-                ["AsFolder"] = "Fold",
+                ["AsFolder"] = "as a folder",
                 ["Translit"] = "Transliterate output filename",
                 ["ReaderSize"] = "Reader screen size (W / H / DPI)",
                 ["Width"] = "W:",
@@ -94,33 +86,43 @@ namespace fb2cng_Configurator
                 ["Item_Date"] = "Date (.Date)",
                 ["Item_Source"] = "Source File (.SourceFile)",
                 ["Item_Uuid"] = "Book UUID (.BookID)",
+                ["Short_id"] = "Shortened book ID (_xx)",
                 ["FootnotesMode"] = "Footnotes display method:",
                 ["TocType"] = "Navigation hierarchy type:",
                 ["OpenCover"] = "Open book from the cover page",
                 ["FixZip"] = "Remove data descriptor (Fix ZIP)",
+                ["SaveSuccessTitle"] = "Success",
+                ["SaveErrorTitle"] = "Save Error",
+                ["ErrAccessDenied"] = "Access Denied: The file '{0}' is locked!\nPlease check if it is marked as 'Read-Only' or opened in another application.",
                 ["SaveSuccess"] = "Configuration successfully saved to {0}!",
+                ["YamlTitle"] = "YAML Error",
                 ["YamlErr"] = "Error: Key '{0}' not found in template config.yaml!",
-                ["HelpText"] = "fb2cng Configurator Help:\n\n1. Select your options.\n2. Use the Name Constructor to build the file structure.\n3. Click OK to save.",
+                ["HelpText"] = "fb2cng Configurator Help:\n\n1. Select your options." +
+                                                          "\n2. Use the Name Constructor to build the file structure." +
+                                                          "\n3. Click OK to save." +
+                                                          "\n\nCreated by Jurchos & Gemini" +
+                                                          "\nVersion: 0.3.",
+                ["GenTitle"] = "Success",
                 ["GenSuccess"] = "config.yaml successfully generated!"
             };
 
-            // 2. УКРАЇНСЬКА ЛОКАЛІЗАЦІЯ (Виправлено ключ на Ukrainian)
+            // 2. УКРАЇНСЬКА ЛОКАЛІЗАЦІЯ
             Localization["Ukrainian"] = new Dictionary<string, string>
             {
-                ["Title"] = "Конфігуратор шаблонів fb2cng",
+                ["Title"] = "Конфігуратор шаблона fb2cng",
                 ["Language"] = "Мова:",
                 ["DumpConfig"] = "Завантажити дефолтний config.yaml",
-                ["ConfigName"] = "Назва файлу налаштувань:",
+                ["ConfigName"] = "Назва власного шаблона:",
                 ["CssEnable"] = "CSS-таблиця стилів",
-                ["Browse"] = "Огляд...",
-                ["Fb2Name"] = "Використовувати ім'я файлу fb2 для вихідного",
+                ["Fb2Name"] = "Залишити назву fb2 для вихідного файла",
                 ["Help"] = "Довідка",
                 ["Theme"] = "Тема",
-                ["Ok"] = "ОК",
+                ["Ok"] = "Зберегти",
                 ["Cancel"] = "Скасувати",
+                ["ErrTitle"] = "Помилка",
                 ["ErrFbc"] = "Помилка: fbc.exe не знайдено в папці з програмою!",
                 ["OutNameTitle"] = "Структура назви вихідного файла",
-                ["AsFolder"] = "Папка",
+                ["AsFolder"] = "як папка",
                 ["Translit"] = "Транслітерувати назву вихідного файлу",
                 ["ReaderSize"] = "Розмір екрана рідера (Ш / В / DPI)",
                 ["Width"] = "W:",
@@ -135,13 +137,23 @@ namespace fb2cng_Configurator
                 ["Item_Date"] = "Дата (.Date)",
                 ["Item_Source"] = "Базова назва файла (.SourceFile)",
                 ["Item_Uuid"] = "UUID книги (.BookID)",
+                ["Short_id"] = "Скорочений ID книги (_xx)",
                 ["FootnotesMode"] = "Спосіб відображення виносок:",
                 ["TocType"] = "Тип навігаційної ієрархії:",
                 ["OpenCover"] = "Відкриття книги з титульної сторінки",
                 ["FixZip"] = "Вилучити дескриптор даних (Fix ZIP)",
+                ["SaveSuccessTitle"] = "Успіх",
+                ["SaveErrorTitle"] = "Помилка збереження",
+                ["ErrAccessDenied"] = "Помилка доступу: Файл '{0}' заблоковано!\nПеревірте, чи не встановлено атрибут 'Тільки для читання', або чи не відкритий він в іншій програмі.",
                 ["SaveSuccess"] = "Конфігурацію успішно збережено у файл {0}!",
+                ["YamlTitle"] = "Помилка YAML",
                 ["YamlErr"] = "Помилка: Ключ '{0}' не знайдено у файлі config.yaml!",
-                ["HelpText"] = "Довідка конфігуратора fb2cng:\n\n1. Налаштуйте необхідні параметри.\n2. Використовуйте конструктор для створення структури папок та імені.\n3. Натисніть ОК для збереження.",
+                ["HelpText"] = "Довідка конфігуратора fb2cng:\n\n1. Налаштуйте необхідні параметри." +
+                                                              "\n2. Використовуйте конструктор для створення структури папок та імені." +
+                                                              "\n3. Натисніть ОК для збереження." +
+                                                              "\n\nСтворено: Jurchos & Gemini" +
+                                                              "\nВерсія: 0.3",
+                ["GenTitle"] = "Успіх",
                 ["GenSuccess"] = "config.yaml успішно згенеровано!"
             };
 
@@ -151,19 +163,19 @@ namespace fb2cng_Configurator
                 ["Title"] = "Конфигуратор шаблонов fb2cng",
                 ["Language"] = "Язык:",
                 ["DumpConfig"] = "Загрузить дефолтный config.yaml",
-                ["ConfigName"] = "Название файла настроек:",
+                ["ConfigName"] = "Имя пользовательского шаблона:",
                 ["CssEnable"] = "CSS-таблица стилей",
-                ["Browse"] = "Обзор...",
-                ["Fb2Name"] = "Использовать имя файла fb2 для выходного",
+                ["Fb2Name"] = "Сохранить имя fb2 для исходного файла",
                 ["Help"] = "Справка",
                 ["Theme"] = "Тема",
                 ["Ok"] = "ОК",
                 ["Cancel"] = "Отмена",
+                ["ErrTitle"] = "Ошибка",
                 ["ErrFbc"] = "Ошибка: fbc.exe не найден в папке с программой!",
-                ["OutNameTitle"] = "Структура названия выходного файла",
-                ["AsFolder"] = "Папка",
-                ["Translit"] = "Транслитерировать название выходного файла",
-                ["ReaderSize"] = "Размер экрана ридера (Ш / В / DPI)",
+                ["OutNameTitle"] = "Структура имени выходного файла",
+                ["AsFolder"] = "как папка",
+                ["Translit"] = "Транслитерировать имя выходного файла",
+                ["ReaderSize"] = "Размер экрана ридера (Ш/В/DPI)",
                 ["Width"] = "W:",
                 ["Height"] = "H:",
                 ["Dpi"] = "DPI:",
@@ -174,15 +186,25 @@ namespace fb2cng_Configurator
                 ["Item_Lang"] = "Язык (.Language)",
                 ["Item_Genre"] = "Жанр (.Genres)",
                 ["Item_Date"] = "Дата (.Date)",
-                ["Item_Source"] = "Базовое название файла (.SourceFile)",
+                ["Item_Source"] = "Базовое имя файла (.SourceFile)",
                 ["Item_Uuid"] = "UUID книги (.BookID)",
+                ["Short_id"] = "Сокращенный ID книги (_xx)",
                 ["FootnotesMode"] = "Способ отображения сносок:",
                 ["TocType"] = "Тип навигационной иерархии:",
                 ["OpenCover"] = "Открытие книги с титульной страницы",
                 ["FixZip"] = "Удалить дескриптор данных (Fix ZIP)",
+                ["SaveSuccessTitle"] = "Успех",
+                ["SaveErrorTitle"] = "Ошибка сохранения",
+                ["ErrAccessDenied"] = "Ошибка доступа: Файл '{0}' заблокирован!\nПроверьте, не установлен ли атрибут 'Только для чтения', или не открыт ли он в другой программе.",
                 ["SaveSuccess"] = "Конфигурация успешно сохранена в файл {0}!",
+                ["YamlTitle"] = "Ошибка YAML",
                 ["YamlErr"] = "Ошибка: Ключ '{0}' не найден в файле config.yaml!",
-                ["HelpText"] = "Справка конфигуратора fb2cng:\n\n1. Настройте необходимые параметры.\n2. Используйте конструктор для создания структуры папок и имени.\n3. Нажмите ОК для сохранения.",
+                ["HelpText"] = "Справка конфигуратора fb2cng:\n\n1. Настройте необходимые параметры." +
+                                                               "\n2. Используйте конструктор для создания структуры папок и имени." +
+                                                               "\n3. Нажмите ОК для сохранения." +
+                                                               "\n\nСоздано: Jurchos & Gemini" +
+                                                               "\nВерсия: 0.3",
+                ["GenTitle"] = "Успех",
                 ["GenSuccess"] = "config.yaml успешно сгенерирован!"
             };
         }
