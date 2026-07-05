@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Threading.Tasks;
@@ -9,6 +10,14 @@ namespace fb2cng_Configurator
 {
     public partial class Form1 : Form
     {
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern bool SetForegroundWindow(IntPtr hWnd);
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern bool IsIconic(IntPtr hWnd);
         // Логічні прапорці захисту від зациклювання графічних подій
         private bool _isThemeApplying = false;
         private bool _isChangingStates = false;
@@ -676,6 +685,47 @@ namespace fb2cng_Configurator
                 _ = ShowCustomMessageBox(msg, caption, MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
         }
+
+        private void BtGui_Click(object sender, EventArgs e)
+        {
+            var runningProcesses = Process.GetProcessesByName("fb2cng_GUI");
+            if (runningProcesses.Length > 0)
+            {
+                // Беремо ПЕРШИЙ знайдений процес із масиву [0]
+                IntPtr hWnd = runningProcesses[0].MainWindowHandle;
+                if (hWnd != IntPtr.Zero)
+                {
+                    if (IsIconic(hWnd)) ShowWindow(hWnd, 9); // SW_RESTORE
+                    SetForegroundWindow(hWnd);
+                    return;
+                }
+            }
+
+            string exePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "fb2cng_GUI.exe");
+            if (File.Exists(exePath))
+            {
+                try { Process.Start(new ProcessStartInfo { FileName = exePath, UseShellExecute = true }); }
+                catch { ShowGuiMissingError(); }
+            }
+            else { ShowGuiMissingError(); }
+        }
+
+        private void ShowGuiMissingError()
+        {
+            // 1. Отримуємо локалізований заголовок для помилки ("Помилка конфігурації" тощо)
+            string caption = Config.Localization.ContainsKey(Config.CurrentLanguage) && Config.Localization[Config.CurrentLanguage].ContainsKey("ErrTitle")
+                ? Config.Localization[Config.CurrentLanguage]["ErrTitle"]
+                : "Configuration Error";
+
+            // 2. Отримуємо локалізований текст про відсутність fb2cng_GUI.exe
+            string text = Config.Localization.ContainsKey(Config.CurrentLanguage) && Config.Localization[Config.CurrentLanguage].ContainsKey("ErrGui")
+                ? Config.Localization[Config.CurrentLanguage]["ErrGui"]
+                : "GUI program not found: please verify that 'fb2cng_GUI.exe' is present in the application folder!";
+
+            // 3. Викликаємо відцентроване кастомне вікно з іконкою помилки
+            _ = ShowCustomMessageBox(text, caption, MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+
 
         private void SaveYamlConfiguration()
         {

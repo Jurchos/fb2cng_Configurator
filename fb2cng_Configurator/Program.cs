@@ -3,28 +3,84 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Text;
+using System.Threading;
 using System.Windows.Forms;
 
 namespace fb2cng_Configurator
 {
     internal static class Program
     {
+        private static readonly Mutex mutex = new Mutex(true, "fb2cng_Configurator_Unique_Mutex_Key_456");
+
         [STAThread]
         private static void Main()
         {
             // Налаштування для High DPI масштабування на .NET 4.8
             if (Environment.OSVersion.Version.Major >= 6)
             {
-                SetProcessDPIAware();
+                _ = SetProcessDPIAware();
+            }
+
+            // Перевіряємо, чи програма вже запущена
+            if (!mutex.WaitOne(TimeSpan.Zero, true))
+            {
+                // --- НОВИЙ БЛОК: Фокусуємо вже відкрите вікно перед виходом ---
+                try
+                {
+                    // Шукаємо інший такий же процес
+                    Process current = Process.GetCurrentProcess();
+                    Process[] processes = Process.GetProcessesByName(current.ProcessName);
+
+                    foreach (Process process in processes)
+                    {
+                        // Ігноруємо поточний (свіжозапущений) примірник
+                        if (process.Id != current.Id)
+                        {
+                            IntPtr hWnd = process.MainWindowHandle;
+                            if (hWnd != IntPtr.Zero)
+                            {
+                                // 9 = SW_RESTORE (відновлює згорнуте вікно)
+                                if (IsIconic(hWnd))
+                                {
+                                    _ = ShowWindow(hWnd, 9);
+                                }
+
+                                // Виводимо вікно на передній план поверх усіх інших програм
+                                _ = SetForegroundWindow(hWnd);
+                            }
+                            break;
+                        }
+                    }
+                }
+                catch
+                {
+                    // Захист на випадок збоїв доступу до процесів Windows
+                }
+
+                return; // Тихо закриваємо дублікат
             }
 
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
             Application.Run(new Form1());
+
+            GC.KeepAlive(mutex);
+            mutex.ReleaseMutex();
         }
 
+
+        // --- СИСТЕМНІ ІМПОРТИ ДЛЯ WINDOWS API ---
         [System.Runtime.InteropServices.DllImport("user32.dll")]
         private static extern bool SetProcessDPIAware();
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern bool SetForegroundWindow(IntPtr hWnd);
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern bool IsIconic(IntPtr hWnd);
 
         // ВНУТРІШНЯ БІЗНЕС-ЛОГІКА ПРОГРАМИ (РОБОТА З YAML ТА ПРОЦЕСАМИ)
         public static class YamlService

@@ -40,7 +40,7 @@ namespace fb2cng_Configurator
         private ComboBox[] cmbOutFields = null;
         private CheckBox[] chkAsFolder = null;
 
-        private Button btnHelp, btnTheme, btnOk, btnCancel;
+        private Button btnHelp, btnTheme, btGui, btnOk, btnCancel;
         private Label lblLang, lblConfigName;
 
         // ХАК ДЛЯ ПОВНОГО ВИЛУЧЕННЯ РИВКІВ ТА МЕРЕХТІННЯ ПРИ ЗМІНІ ТЕМИ (Рендеринг у буфері ОС)
@@ -62,9 +62,6 @@ namespace fb2cng_Configurator
 
         [DllImport("user32.dll")]
         private static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
-
-        [DllImport("user32.dll")]
-        private static extern bool SetForegroundWindow(IntPtr hWnd);
 
         [DllImport("user32.dll")]
         private static extern IntPtr SetActiveWindow(IntPtr hWnd);
@@ -321,26 +318,43 @@ namespace fb2cng_Configurator
             {
                 Text = "Help",
                 Image = ResizeImage(Properties.Resources.icon_info, iconSize, iconSize),
-                ImageAlign = ContentAlignment.MiddleCenter,     // Змінено на Центр
-                TextAlign = ContentAlignment.MiddleCenter,      // Додано для тексту
+                ImageAlign = ContentAlignment.MiddleCenter,
+                TextAlign = ContentAlignment.MiddleCenter,
                 TextImageRelation = TextImageRelation.ImageBeforeText,
-                Padding = new Padding((int)(2 * currentScale), 0, 0, 0) // Робить м'який відступ між іконкою та текстом
+                Padding = new Padding((int)(2 * currentScale), 0, 0, 0)
             };
 
             btnTheme = new Button
             {
                 Text = "Theme",
                 Image = ResizeImage(Properties.Resources.day_night, iconSize, iconSize),
-                ImageAlign = ContentAlignment.MiddleCenter,    // Змінено на Центр
-                TextAlign = ContentAlignment.MiddleCenter,     // Додано для тексту
+                ImageAlign = ContentAlignment.MiddleCenter,
+                TextAlign = ContentAlignment.MiddleCenter,
                 TextImageRelation = TextImageRelation.ImageBeforeText,
-                Padding = new Padding((int)(10 * currentScale), 0, 0, 0) // Робить м'який відступ між іконкою та текстом
+                Padding = new Padding((int)(10 * currentScale), 0, 0, 0)
             };
+
+            // НОВА КНОПКА ДЛЯ ЗАПУСКУ fb2cng_GUI
+            btGui = new Button
+            {
+                Text = "GUI",
+                ImageAlign = ContentAlignment.MiddleCenter,
+                TextAlign = ContentAlignment.MiddleCenter,
+                TextImageRelation = TextImageRelation.ImageBeforeText,
+                Padding = new Padding((int)(3 * currentScale), 0, 0, 0)// 10 пікселів відступу зліва для тексту "GUI" забагато
+            };
+
+            // Перевіряємо наявність іконки у ресурсах, якщо немає — кнопка залишиться просто з текстом "GUI"
+            if (Properties.Resources.icon_GUI != null)
+            {
+                btGui.Image = ResizeImage(Properties.Resources.icon_GUI, iconSize, iconSize);
+            }
 
             btnOk = new Button { Text = "OK" };
             btnCancel = new Button { Text = "Cancel" };
 
-            footerPanel.Controls.AddRange(new Control[] { btnHelp, btnTheme, btnOk, btnCancel });
+            // ДОДАЄМО btGui В МАСИВ ЕЛЕМЕНТІВ ФУТЕРА
+            footerPanel.Controls.AddRange(new Control[] { btnHelp, btnTheme, btGui, btnOk, btnCancel });
 
             // НАЛАШТУВАННЯ ГАРЯЧИХ КЛАВІШ 
             AcceptButton = btnOk;     // Enter тепер натискає OK
@@ -350,6 +364,9 @@ namespace fb2cng_Configurator
             btnCancel.Click += (s, e) => Close();
             btnHelp.Click += (s, e) => ShowHelp();
             btnOk.Click += (s, e) => SaveYamlConfiguration();
+
+            // ЗВ'ЯЗУЄМО З МЕТОДОМ ЗАПУСКУ З Form1_Logic.cs
+            btGui.Click += BtGui_Click;
 
             // === КРОК 6: ГЕОМЕТРІЯ ТА РОЗРАХУНОК КООРДИНАТ ЕЛЕМЕНТІВ ===
             // Ідеальна базова ширина програми для розміщення всіх елементів
@@ -476,13 +493,15 @@ namespace fb2cng_Configurator
             footerPanel.SetBounds(0, grpOutName.Bottom + blockMargin, ClientSize.Width, footerHeight);
 
             // Розставляємо кнопки чітко горизонтально за координатами
-            int btnWidth = (int)(90 * currentScale);                 // Фіксована ширина кнопок
-            int btnHeight = fieldHeight + (int)(4 * currentScale);   // Висота кнопок з запасом для кращого вигляду
-            int btnTop = (int)(5 * currentScale);                    // Відступ від верхньої межі футера до кнопок
+            int btnWidth = (int)(90 * currentScale);                 // Фіксована ширина для стандартних кнопок
+            int guiBtnWidth = (int)(60 * currentScale);              // Компактна ширина спеціально для кнопки "GUI"
+            int btnHeight = fieldHeight + (int)(4 * currentScale);   // Висота кнопок
+            int btnTop = (int)(5 * currentScale);                    // Відступ від верхньої межі футера
 
             // Ліві кнопки
             btnHelp.SetBounds(xLeft, btnTop, btnWidth, btnHeight);
-            btnTheme.SetBounds(btnHelp.Right + (int)(6 * currentScale), btnTop, btnWidth, btnHeight);  // Відступ між кнопками 6 пікселів
+            btnTheme.SetBounds(btnHelp.Right + (int)(6 * currentScale), btnTop, btnWidth, btnHeight);
+            btGui.SetBounds(btnTheme.Right + (int)(6 * currentScale), btnTop, guiBtnWidth, btnHeight); // Використовуємо компактну ширину
 
             // Праві кнопки (рахуємо від правого краю форми назад)
             btnCancel.SetBounds(ClientSize.Width - xLeft - btnWidth, btnTop, btnWidth, btnHeight);
@@ -490,9 +509,10 @@ namespace fb2cng_Configurator
 
             // === ЗАКРУГЛЕННЯ КНОПОК ПІСЛЯ ТОГО, ЯК ЗАДАНІ ВСІ РОЗМІРИ SETBOUNDS ===
             MakeButtonRounded(btnDumpConfig, btnRadius);
-            MakeButtonRounded(btnBrowseCss, (int)(5 * currentScale));// Застосовуємо закруглення кутів кнопки огляду (трохи менший радіус для компактності)
+            MakeButtonRounded(btnBrowseCss, (int)(5 * currentScale));
             MakeButtonRounded(btnHelp, btnRadius);
             MakeButtonRounded(btnTheme, btnRadius);
+            MakeButtonRounded(btGui, btnRadius); // <--- ДОДАНО: Закруглюємо нову кнопку оболонки
             MakeButtonRounded(btnOk, btnRadius);
             MakeButtonRounded(btnCancel, btnRadius);
             // Фінальний розрахунок висоти програми

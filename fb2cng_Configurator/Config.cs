@@ -67,8 +67,9 @@ namespace fb2cng_Configurator
                 ["Theme"] = "Theme",
                 ["Ok"] = "Save",
                 ["Cancel"] = "Cancel",
-                ["ErrTitle"] = "Error",
-                ["ErrFbc"] = "Error: fbc.exe not found in the application folder!",
+                ["ErrTitle"] = "Component Missing",
+                ["ErrFbc"] = "The GUI program for fb2cng not found: please verify that 'fbc.exe' is present in the application folder!",
+                ["ErrGui"] = "Configurator program not found: please verify that 'fb2cng_GUI.exe' is present in the application folder!",
                 ["OutNameTitle"] = "Output File Name Structure",
                 ["AsFolder"] = "as a folder",
                 ["Translit"] = "Transliterate output filename",
@@ -103,7 +104,7 @@ namespace fb2cng_Configurator
                                "\n2. Use the Constructor to build the folder structure and filename." +
                                "\n3. Click 'Save'." +
                                "\n\nCreated by: Jurchos & Gemini" +
-                               "\nVersion: 0.5",
+                               "\nVersion: 0.5.1",
                 ["GenTitle"] = "Success",
                 ["GenSuccess"] = "config.yaml successfully generated!"
             };
@@ -121,8 +122,9 @@ namespace fb2cng_Configurator
                 ["Theme"] = "Тема",
                 ["Ok"] = "Зберегти",
                 ["Cancel"] = "Скасувати",
-                ["ErrTitle"] = "Помилка",
-                ["ErrFbc"] = "Помилка: fbc.exe не знайдено в папці з програмою!",
+                ["ErrTitle"] = "Помилка конфігурації",
+                ["ErrFbc"] = "Відсутня програма-конвертор: перевірте наявність файлу 'fbc.exe' в папці з програмою!",
+                ["ErrGui"] = "Відсутня програма-оболонка для fb2cng: перевірте наявність файлу 'fb2cng_GUI.exe' в папці з програмою!",
                 ["OutNameTitle"] = "Структура назви вихідного файла",
                 ["AsFolder"] = "як папка",
                 ["Translit"] = "Транслітерувати назву вихідного файлу",
@@ -157,7 +159,7 @@ namespace fb2cng_Configurator
                                "\n2. Використовуйте конструктор для створення структури папок та імені." +
                                "\n3. Натисніть 'Зберегти.'" +
                                "\n\nСтворено: Jurchos & Gemini" +
-                               "\nВерсія: 0.5",
+                               "\nВерсія: 0.5.1",
                 ["GenTitle"] = "Успіх",
                 ["GenSuccess"] = "config.yaml успішно згенеровано!"
             };
@@ -175,8 +177,9 @@ namespace fb2cng_Configurator
                 ["Theme"] = "Тема",
                 ["Ok"] = "Сохранить",
                 ["Cancel"] = "Отмена",
-                ["ErrTitle"] = "Ошибка",
-                ["ErrFbc"] = "Ошибка: fbc.exe не найден в папке с программой!",
+                ["ErrTitle"] = "Ошибка конфигурации",
+                ["ErrFbc"] = "Программа-конвертер не найдена: проверьте наличие файла 'fbc.exe' в папке с программой!",
+                ["ErrGui"] = "Программа-оболочка для fb2cng не найдена: проверьте наличие файла 'fb2cng_GUI.exe' в папке с программой!",
                 ["OutNameTitle"] = "Структура имени выходного файла",
                 ["AsFolder"] = "как папка",
                 ["Translit"] = "Транслитерировать имя выходного файла",
@@ -211,7 +214,7 @@ namespace fb2cng_Configurator
                                "\n2. Используйте конструктор для создания структуры папок и имени." +
                                "\n3. Нажмите 'Сохранить'." +
                                "\n\nСоздано: Jurchos & Gemini" +
-                               "\nВерсия: 0.5",
+                               "\nВерсия: 0.5.1",
                 ["GenTitle"] = "Успех",
                 ["GenSuccess"] = "config.yaml успешно сгенерирован!"
             };
