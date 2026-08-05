@@ -1,3 +1,11 @@
+# 🛑 PROJECT ARCHIVED & DEPRECATED 🛑
+
+> **Important:** This repository is archived and no longer maintained. The project has been completely rewritten and migrated from .NET Framework to **.NET 10** with expanded features.
+
+👉 **Current active repository:**  [**fb2cng_FullConfig**](https://github.com/Jurchos/fb2cng_FullConfig.git)
+
+---
+
 # fb2cng_Configurator
 
 A Windows Forms graphical user interface (GUI) template configurator for the [**fb2cng (fbc)**](https://github.com/rupor-github/fb2cng) CLI converter. 
